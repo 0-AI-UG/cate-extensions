@@ -3,18 +3,24 @@
 // page. CSP-safe: this is an external script, no inline JS. All requests/WS go
 // to RELATIVE URLs so they resolve under /ext/<routeToken>/ and tunnel through
 // the proxy (which injects the bearer); the page itself never holds a token.
+// Authored in TypeScript; `npm run build` compiles this to dist/public/app.js.
 // =============================================================================
 
-const logEl = document.getElementById('log')
-function log(...args) {
+const logEl = document.getElementById('log') as HTMLElement
+
+function log(...args: unknown[]): void {
   const line = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')
   logEl.textContent += line + '\n'
   logEl.scrollTop = logEl.scrollHeight
 }
 
-function set(id, text) {
+function set(id: string, text: string): void {
   const el = document.getElementById(id)
   if (el) el.textContent = text
+}
+
+function byId<T extends HTMLElement>(id: string): T {
+  return document.getElementById(id) as T
 }
 
 // Base path for our own server, e.g. "/ext/<routeToken>/". location.pathname is
@@ -23,7 +29,7 @@ const BASE = location.pathname.replace(/[^/]*$/, '')
 
 // --- cateHost bridge --------------------------------------------------------
 
-async function initBridge() {
+async function initBridge(): Promise<void> {
   if (!window.cate) {
     set('version', 'window.cate missing — preload not injected')
     log('FATAL: cateHost preload not injected')
@@ -55,9 +61,9 @@ async function initBridge() {
 
 /** Map a few Cate app theme tokens onto our CSS variables. Token keys vary by
  *  theme, so we probe several common names and fall back gracefully. */
-function applyTheme(theme) {
+function applyTheme(theme: CateHostTheme): void {
   const app = theme.app || {}
-  const pick = (...keys) => {
+  const pick = (...keys: string[]): string | null => {
     for (const k of keys) if (app[k]) return app[k]
     return null
   }
@@ -76,11 +82,11 @@ function applyTheme(theme) {
 // --- storage autosave -------------------------------------------------------
 
 const NOTES_KEY = 'kitchensink:notes'
-let saveTimer = null
+let saveTimer: ReturnType<typeof setTimeout> | null = null
 
-async function initNotes() {
+async function initNotes(): Promise<void> {
   if (!window.cate) return
-  const notes = document.getElementById('notes')
+  const notes = byId<HTMLTextAreaElement>('notes')
   try {
     const saved = await cate.storage.get(NOTES_KEY)
     if (typeof saved === 'string') notes.value = saved
@@ -106,8 +112,8 @@ async function initNotes() {
 
 // --- reverse-API actions ----------------------------------------------------
 
-function initActions() {
-  document.getElementById('open-file').addEventListener('click', async () => {
+function initActions(): void {
+  byId('open-file').addEventListener('click', async () => {
     try {
       const res = await cate.editor.openFile('package.json')
       log('editor.openFile package.json ->', res)
@@ -116,19 +122,19 @@ function initActions() {
     }
   })
 
-  document.getElementById('spawn-panel').addEventListener('click', async () => {
+  byId('spawn-panel').addEventListener('click', async () => {
     try {
       const res = await cate.canvas.createPanel('extension', {
         extensionId: 'cate.kitchensink',
         extensionPanelId: 'main',
-      })
+      } as unknown as Parameters<typeof cate.canvas.createPanel>[1])
       log('canvas.createPanel ->', res)
     } catch (err) {
       log('canvas.createPanel failed:', String(err))
     }
   })
 
-  document.getElementById('set-title').addEventListener('click', async () => {
+  byId('set-title').addEventListener('click', async () => {
     const title = 'Kitchen Sink @ ' + new Date().toLocaleTimeString()
     try {
       await cate.panel.setTitle(title)
@@ -141,18 +147,18 @@ function initActions() {
 
 // --- HTTP tunnel ------------------------------------------------------------
 
-function initHttp() {
-  document.getElementById('call-info').addEventListener('click', async () => {
+function initHttp(): void {
+  byId('call-info').addEventListener('click', async () => {
     try {
       const res = await fetch(BASE + 'api/info')
       const json = await res.json()
-      document.getElementById('http-out').textContent = 'GET /api/info -> ' + JSON.stringify(json, null, 2)
+      byId('http-out').textContent = 'GET /api/info -> ' + JSON.stringify(json, null, 2)
     } catch (err) {
-      document.getElementById('http-out').textContent = 'GET /api/info failed: ' + String(err)
+      byId('http-out').textContent = 'GET /api/info failed: ' + String(err)
     }
   })
 
-  document.getElementById('call-echo').addEventListener('click', async () => {
+  byId('call-echo').addEventListener('click', async () => {
     try {
       const body = { hello: 'from the page', at: Date.now() }
       const res = await fetch(BASE + 'api/echo', {
@@ -161,19 +167,19 @@ function initHttp() {
         body: JSON.stringify(body),
       })
       const json = await res.json()
-      document.getElementById('http-out').textContent = 'POST /api/echo -> ' + JSON.stringify(json, null, 2)
+      byId('http-out').textContent = 'POST /api/echo -> ' + JSON.stringify(json, null, 2)
     } catch (err) {
-      document.getElementById('http-out').textContent = 'POST /api/echo failed: ' + String(err)
+      byId('http-out').textContent = 'POST /api/echo failed: ' + String(err)
     }
   })
 }
 
 // --- WebSocket tunnel -------------------------------------------------------
 
-let ws = null
+let ws: WebSocket | null = null
 
-function initWs() {
-  const out = document.getElementById('ws-out')
+function initWs(): void {
+  const out = byId('ws-out')
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
   const wsUrl = proto + '//' + location.host + BASE + 'ws'
   try {
@@ -195,8 +201,8 @@ function initWs() {
     out.textContent += '\nWebSocket closed'
   }
 
-  document.getElementById('ws-send').addEventListener('click', () => {
-    const msg = document.getElementById('ws-input').value
+  byId('ws-send').addEventListener('click', () => {
+    const msg = byId<HTMLInputElement>('ws-input').value
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(msg)
       out.textContent += '\n> ' + msg
@@ -208,15 +214,14 @@ function initWs() {
 
 // --- CATE_API reverse -------------------------------------------------------
 
-function initRoundtrip() {
-  document.getElementById('roundtrip').addEventListener('click', async () => {
-    const out = document.getElementById('roundtrip-out')
+function initRoundtrip(): void {
+  byId('roundtrip').addEventListener('click', async () => {
+    const out = byId('roundtrip-out')
     out.textContent = 'running…'
     try {
       const res = await fetch(BASE + 'api/cate-roundtrip', { method: 'POST' })
       const json = await res.json()
-      out.textContent =
-        (json.ok ? 'OK ✓ ' : 'MISMATCH ✗ ') + JSON.stringify(json, null, 2)
+      out.textContent = (json.ok ? 'OK ✓ ' : 'MISMATCH ✗ ') + JSON.stringify(json, null, 2)
     } catch (err) {
       out.textContent = 'failed: ' + String(err)
     }

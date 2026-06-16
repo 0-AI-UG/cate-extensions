@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "panels": [{ "id": "main", "label": "Kitchen Sink" }],
   "server": {
-    "command": "node server.js",
+    "command": "node dist/server.js",
     "readyPath": "/health",
     "portEnv": "PORT"
   },
