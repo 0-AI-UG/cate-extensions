@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kitchen Sink — Cate Extension API Demo</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Kitchen Sink</h1>
+    <p class="sub">A server-backed extension that exercises the whole Cate extension stack.</p>
+  </header>
+
+  <!-- ================= cateHost bridge ================= -->
+  <section data-proves="cateHost bridge (preload IPC into Cate)">
+    <h2>cateHost bridge</h2>
+    <div class="row"><span class="label">cate.version</span><code id="version">…</code></div>
+    <div class="row"><span class="label">panel.id</span><code id="panel">…</code></div>
+    <div class="row"><span class="label">workspace</span><code id="workspace">…</code></div>
+    <div class="row"><span class="label">theme</span><code id="theme">…</code></div>
+    <p class="note">Theme tokens above are applied to this panel's colors via <code>cate.theme.get</code>.</p>
+  </section>
+
+  <!-- ================= storage autosave ================= -->
+  <section data-proves="cate.storage.get/set (persisted UI state, autosave)">
+    <h2>Notes (autosaved via cate.storage)</h2>
+    <textarea id="notes" rows="4" placeholder="Type here — autosaved to cate.storage and restored on reopen…"></textarea>
+    <div class="row"><span class="label">status</span><code id="notes-status">—</code></div>
+  </section>
+
+  <!-- ================= reverse-API actions ================= -->
+  <section data-proves="cate.editor.openFile / cate.canvas.createPanel / cate.panel.setTitle">
+    <h2>Cate actions (reverse API)</h2>
+    <div class="row">
+      <button id="open-file">Open package.json in Cate</button>
+      <button id="spawn-panel">Spawn another Kitchen Sink panel</button>
+      <button id="set-title">Set panel title</button>
+    </div>
+  </section>
+
+  <!-- ================= HTTP tunnel ================= -->
+  <section data-proves="HTTP tunnel (page → proxy → daemon-hosted server)">
+    <h2>HTTP tunnel to our own server</h2>
+    <div class="row">
+      <button id="call-info">GET /api/info</button>
+      <button id="call-echo">POST /api/echo</button>
+    </div>
+    <pre id="http-out">—</pre>
+  </section>
+
+  <!-- ================= WebSocket tunnel ================= -->
+  <section data-proves="WebSocket tunnel (WS upgrade through the proxy)">
+    <h2>WebSocket echo</h2>
+    <div class="row">
+      <input id="ws-input" type="text" value="hello over websocket" />
+      <button id="ws-send">Send over WS</button>
+    </div>
+    <pre id="ws-out">WebSocket: connecting…</pre>
+  </section>
+
+  <!-- ================= CATE_API reverse ================= -->
+  <section data-proves="CATE_API reverse channel (server → Cate)">
+    <h2>Server → Cate round-trip</h2>
+    <p class="note">Hits <code>POST /api/cate-roundtrip</code>; the SERVER calls back into Cate
+      (<code>cate.storage.set</code> then <code>cate.storage.get</code>) via <code>CATE_API</code>.</p>
+    <div class="row"><button id="roundtrip">Run server → Cate round-trip</button></div>
+    <pre id="roundtrip-out">—</pre>
+  </section>
+
+  <pre id="log"></pre>
+  <script src="app.js"></script>
+</body>
+</html>

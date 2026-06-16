@@ -1,0 +1,113 @@
+:root {
+  /* Defaults; overridden at runtime from cate.theme.get tokens. */
+  --ks-bg: #1e1e2e;
+  --ks-fg: #cdd6f4;
+  --ks-accent: #89b4fa;
+  --ks-panel: #313244;
+  color-scheme: dark light;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 20px;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--ks-bg);
+  color: var(--ks-fg);
+}
+
+header { margin-bottom: 16px; }
+h1 { font-size: 18px; margin: 0; }
+.sub { margin: 4px 0 0; opacity: 0.7; }
+
+h2 {
+  font-size: 12px;
+  margin: 0 0 8px;
+  opacity: 0.75;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+section {
+  position: relative;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--ks-fg) 18%, transparent);
+  border-left: 3px solid var(--ks-accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ks-panel) 35%, transparent);
+}
+
+/* Surface what each section proves about the stack. */
+section::after {
+  content: attr(data-proves);
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 10px;
+  opacity: 0.45;
+  max-width: 50%;
+  text-align: right;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  flex-wrap: wrap;
+}
+.label { min-width: 90px; opacity: 0.7; }
+.note { margin: 6px 0 0; font-size: 12px; opacity: 0.65; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: color-mix(in srgb, var(--ks-fg) 12%, transparent);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+input,
+textarea {
+  flex: 1;
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--ks-fg) 30%, transparent);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 13px;
+}
+textarea { resize: vertical; }
+
+button {
+  padding: 5px 12px;
+  border: 1px solid var(--ks-accent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ks-accent) 18%, transparent);
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+}
+button:hover { background: color-mix(in srgb, var(--ks-accent) 35%, transparent); }
+
+pre {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--ks-fg) 8%, transparent);
+  border-radius: 6px;
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+
+#log {
+  margin-top: 16px;
+  opacity: 0.8;
+  max-height: 120px;
+}
