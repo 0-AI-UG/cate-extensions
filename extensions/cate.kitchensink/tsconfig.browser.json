@@ -1,0 +1,14 @@
+{
+  // Browser panel build: src/public/app.ts -> dist/public/app.js (classic script,
+  // no module wrapper since it has no imports/exports). DOM lib, no Node types.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2020", "DOM"],
+    "types": [],
+    "rootDir": "src/public",
+    "outDir": "dist/public"
+  },
+  "include": ["src/public/**/*.ts"]
+}

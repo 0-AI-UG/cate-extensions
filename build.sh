@@ -4,6 +4,11 @@
 # artifact at dist/artifacts/<id>-<version>.tgz (manifest.json at the tar root,
 # the shape Cate's installer extracts), then generate dist/catalog/index.json.
 #
+# TypeScript extensions (those with a package.json build script) are compiled
+# first (`npm install` once + `npm run build`); only manifest.json + the
+# extension's dist/ ship in the artifact. Plain-asset extensions (no dist/)
+# ship their directory as-is.
+#
 # dist/ is recreated fresh on every run.
 #
 # Set CATALOG_BASE_URL to emit absolute https:// artifact URLs (publishing);
@@ -28,11 +33,24 @@ for dir in "$EXT_DIR"/*/; do
     echo "skip $id: no manifest.json"
     continue
   fi
+
+  # Compile TypeScript extensions (anything with a package.json build script).
+  if [[ -f "$dir/package.json" ]]; then
+    echo "building $id ..."
+    ( cd "$dir" && [[ -d node_modules ]] || npm install --no-audit --no-fund --silent )
+    ( cd "$dir" && npm run build )
+  fi
+
   version="$(node -e "process.stdout.write(String(require('$manifest').version || '0.0.0'))")"
   out="$ARTIFACT_DIR/$id-$version.tgz"
-  # COPYFILE_DISABLE avoids macOS ._* AppleDouble entries in the tarball;
-  # -C "$dir" . puts manifest.json at the tar root.
-  COPYFILE_DISABLE=1 tar -czf "$out" -C "$dir" .
+  # COPYFILE_DISABLE avoids macOS ._* AppleDouble entries in the tarball.
+  if [[ -d "$dir/dist" ]]; then
+    # Compiled extension: ship only the runnable output + manifest.
+    COPYFILE_DISABLE=1 tar -czf "$out" -C "$dir" manifest.json dist
+  else
+    # Asset-only extension: ship the directory as-is (manifest.json at tar root).
+    COPYFILE_DISABLE=1 tar -czf "$out" -C "$dir" .
+  fi
   echo "built $out"
 done
 

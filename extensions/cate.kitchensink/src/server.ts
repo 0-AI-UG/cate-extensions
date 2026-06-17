@@ -1,7 +1,8 @@
 // =============================================================================
 // Kitchen Sink — a server-backed Cate extension that exercises the WHOLE
-// extension stack end to end. Dependency-free (Node http + raw WS frames), so
-// the shipped .tgz carries only source, no node_modules.
+// extension stack end to end. Dependency-free at runtime (Node http + raw WS
+// frames), so the shipped .tgz carries only compiled JS, no node_modules.
+// Authored in TypeScript; `npm run build` compiles this to dist/server.js.
 //
 // Cate spawns this on the workspace's runtime host with:
 //   PORT           — a free loopback port we MUST bind on 127.0.0.1
@@ -22,10 +23,10 @@
 // Each route proves a specific layer of the stack; the page labels them.
 // =============================================================================
 
-const http = require('http')
-const crypto = require('crypto')
-const fs = require('fs')
-const path = require('path')
+import http from 'http'
+import crypto from 'crypto'
+import fs from 'fs'
+import path from 'path'
 
 const PORT = Number(process.env.PORT)
 const TOKEN = process.env.CATE_TOKEN || ''
@@ -44,8 +45,8 @@ if (!PORT) {
 // injected it on our behalf.
 // ---------------------------------------------------------------------------
 
-function authorized(req) {
-  const header = req.headers['authorization'] || ''
+function authorized(req: http.IncomingMessage): boolean {
+  const header = String(req.headers['authorization'] || '')
   return TOKEN.length > 0 && header === `Bearer ${TOKEN}`
 }
 
@@ -55,7 +56,7 @@ function authorized(req) {
 // We authenticate with the same CATE_TOKEN. Proves the server -> Cate path.
 // ---------------------------------------------------------------------------
 
-function callCateApi(method, args) {
+function callCateApi(method: string, args?: Record<string, unknown>): Promise<unknown> {
   return new Promise((resolve, reject) => {
     if (!CATE_API) {
       reject(new Error('CATE_API not set'))
@@ -63,7 +64,7 @@ function callCateApi(method, args) {
     }
     const body = JSON.stringify({ method, args: args || {} })
     const u = new URL(CATE_API)
-    const opts = {
+    const opts: http.RequestOptions = {
       hostname: u.hostname,
       port: u.port,
       path: u.pathname || '/',
@@ -75,8 +76,8 @@ function callCateApi(method, args) {
       },
     }
     const r = http.request(opts, (res) => {
-      const chunks = []
-      res.on('data', (c) => chunks.push(c))
+      const chunks: Buffer[] = []
+      res.on('data', (c: Buffer) => chunks.push(c))
       res.on('end', () => {
         const text = Buffer.concat(chunks).toString('utf8')
         if (res.statusCode !== 200) {
@@ -95,31 +96,41 @@ function callCateApi(method, args) {
   })
 }
 
+interface RoundtripResult {
+  ok: boolean
+  wrote: string
+  read: unknown
+}
+
 /** Run a storage set + get round-trip through CATE_API and report the result. */
-async function cateRoundtrip() {
+async function cateRoundtrip(): Promise<RoundtripResult> {
   const stamp = `kitchensink-${Date.now()}`
   await callCateApi('cate.storage.set', { key: 'kitchensink:roundtrip', value: stamp })
   const got = await callCateApi('cate.storage.get', { key: 'kitchensink:roundtrip' })
   // dispatchStorage returns the raw value for storage.get; cate.storage.get over
   // the reverse endpoint may wrap it as { result }. Accept either shape.
-  const read = got && typeof got === 'object' && 'result' in got ? got.result : got
-  return {
-    ok: read === stamp,
-    wrote: stamp,
-    read,
-  }
+  const read =
+    got && typeof got === 'object' && 'result' in got
+      ? (got as { result: unknown }).result
+      : got
+  return { ok: read === stamp, wrote: stamp, read }
 }
 
 // ---------------------------------------------------------------------------
 // Static assets — served from this file's own dir (CSP-safe, external script).
 // ---------------------------------------------------------------------------
 
-const STATIC = {
+interface StaticAsset {
+  file: string
+  type: string
+}
+
+const STATIC: Record<string, StaticAsset> = {
   '/app.js': { file: 'public/app.js', type: 'text/javascript; charset=utf-8' },
   '/style.css': { file: 'public/style.css', type: 'text/css; charset=utf-8' },
 }
 
-function readPublic(rel) {
+function readPublic(rel: string): Buffer {
   return fs.readFileSync(path.join(__dirname, rel))
 }
 
@@ -135,7 +146,7 @@ const PAGE_CSP =
   "connect-src 'self' ws: wss:; " +
   'frame-ancestors *'
 
-function sendJson(res, status, obj) {
+function sendJson(res: http.ServerResponse, status: number, obj: unknown): void {
   const body = JSON.stringify(obj)
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -145,10 +156,10 @@ function sendJson(res, status, obj) {
   res.end(body)
 }
 
-function readBody(req) {
+function readBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
-    const chunks = []
-    req.on('data', (c) => chunks.push(c))
+    const chunks: Buffer[] = []
+    req.on('data', (c: Buffer) => chunks.push(c))
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
     req.on('error', () => resolve(''))
   })
@@ -159,7 +170,7 @@ function readBody(req) {
 // ---------------------------------------------------------------------------
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://127.0.0.1')
+  const url = new URL(req.url || '/', 'http://127.0.0.1')
   const pathname = url.pathname
 
   // Readiness probe — auth-exempt so Cate's probe (no token yet) succeeds.
@@ -190,11 +201,12 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Static assets.
-  if (STATIC[pathname]) {
+  const asset = STATIC[pathname]
+  if (asset) {
     try {
-      const data = readPublic(STATIC[pathname].file)
+      const data = readPublic(asset.file)
       res.writeHead(200, {
-        'Content-Type': STATIC[pathname].type,
+        'Content-Type': asset.type,
         'Cache-Control': 'no-store',
         'X-Content-Type-Options': 'nosniff',
       })
@@ -221,7 +233,7 @@ const server = http.createServer(async (req, res) => {
   // POST /api/echo — echoes the request body back, proving a round-trip.
   if (pathname === '/api/echo' && req.method === 'POST') {
     const raw = await readBody(req)
-    let parsed
+    let parsed: unknown
     try {
       parsed = raw ? JSON.parse(raw) : null
     } catch {
@@ -237,7 +249,8 @@ const server = http.createServer(async (req, res) => {
       const result = await cateRoundtrip()
       sendJson(res, 200, result)
     } catch (err) {
-      sendJson(res, 500, { ok: false, error: err && err.message ? err.message : String(err) })
+      const message = err instanceof Error ? err.message : String(err)
+      sendJson(res, 500, { ok: false, error: message })
     }
     return
   }
@@ -264,7 +277,7 @@ server.on('upgrade', (req, socket) => {
   }
   const accept = crypto
     .createHash('sha1')
-    .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
+    .update(String(key) + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
     .digest('base64')
   socket.write(
     'HTTP/1.1 101 Switching Protocols\r\n' +
@@ -273,14 +286,14 @@ server.on('upgrade', (req, socket) => {
       `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
   )
 
-  socket.on('data', (buf) => {
+  socket.on('data', (buf: Buffer) => {
     const text = decodeTextFrame(buf)
     if (text != null) socket.write(encodeTextFrame(`echo: ${text}`))
   })
   socket.on('error', () => socket.destroy())
 })
 
-function decodeTextFrame(buf) {
+function decodeTextFrame(buf: Buffer): string | null {
   if (buf.length < 2) return null
   const opcode = buf[0] & 0x0f
   if (opcode === 0x8) return null // close
@@ -295,7 +308,7 @@ function decodeTextFrame(buf) {
     len = Number(buf.readBigUInt64BE(2))
     offset = 10
   }
-  let payload
+  let payload: Buffer
   if (masked) {
     const mask = buf.slice(offset, offset + 4)
     offset += 4
@@ -307,10 +320,10 @@ function decodeTextFrame(buf) {
   return payload.toString('utf8')
 }
 
-function encodeTextFrame(text) {
+function encodeTextFrame(text: string): Buffer {
   const payload = Buffer.from(text, 'utf8')
   const len = payload.length
-  let header
+  let header: Buffer
   if (len < 126) {
     header = Buffer.from([0x81, len])
   } else if (len < 65536) {
