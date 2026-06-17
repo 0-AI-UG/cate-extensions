@@ -77,7 +77,8 @@ Cate's catalog source at the **absolute path** to that file, e.g.:
 ```
 cate-extensions/
   extensions/<id>/            # extension sources (one folder per extension)
-    cate.kitchensink/         # full-stack API demo
+    cate.kitchensink/         # full-stack (server-backed) API demo
+    cate.frontendkit/         # frontend-only (static assets, no server) API demo
   scripts/gen-catalog.mjs     # builds dist/catalog/index.json (dependency-free)
   build.sh                    # tars extensions -> dist/artifacts, then gen-catalog
   .github/workflows/publish.yml  # PR build + Pages deploy on main
