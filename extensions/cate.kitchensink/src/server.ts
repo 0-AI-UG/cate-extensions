@@ -18,7 +18,8 @@
 //   GET  /api/info           -> { workspaceRoot, pid, time, ... }   [HTTP tunnel]
 //   POST /api/echo           -> echoes the JSON body                [HTTP tunnel]
 //   GET  /ws                 -> WebSocket echo                      [WS tunnel]
-//   POST /api/cate-roundtrip -> server calls CATE_API storage.set+get [reverse]
+//   POST /api/cate-roundtrip -> server drives CATE_API storage.set/get/keys/
+//                               delete + ui.notify + version            [reverse]
 //
 // Each route proves a specific layer of the stack; the page labels them.
 // =============================================================================
@@ -100,20 +101,57 @@ interface RoundtripResult {
   ok: boolean
   wrote: string
   read: unknown
+  keysIncluded: boolean
+  deleted: boolean
+  notified: boolean
+  version: unknown
 }
 
-/** Run a storage set + get round-trip through CATE_API and report the result. */
+/** dispatchStorage returns the raw value; cate.* over the reverse endpoint may
+ *  wrap it as { result }. Accept either shape. */
+function unwrap(v: unknown): unknown {
+  return v && typeof v === 'object' && 'result' in v ? (v as { result: unknown }).result : v
+}
+
+/**
+ * Exercise the WHOLE main-handled cate.* surface reachable from the server over
+ * CATE_API and report each step:
+ *   storage.set -> storage.get (round-trip)
+ *   storage.keys (must include the key we wrote)
+ *   storage.delete -> storage.get (must read back empty)
+ *   ui.notify, cate.version
+ */
 async function cateRoundtrip(): Promise<RoundtripResult> {
+  const key = 'kitchensink:roundtrip'
   const stamp = `kitchensink-${Date.now()}`
-  await callCateApi('cate.storage.set', { key: 'kitchensink:roundtrip', value: stamp })
-  const got = await callCateApi('cate.storage.get', { key: 'kitchensink:roundtrip' })
-  // dispatchStorage returns the raw value for storage.get; cate.storage.get over
-  // the reverse endpoint may wrap it as { result }. Accept either shape.
-  const read =
-    got && typeof got === 'object' && 'result' in got
-      ? (got as { result: unknown }).result
-      : got
-  return { ok: read === stamp, wrote: stamp, read }
+
+  await callCateApi('cate.storage.set', { key, value: stamp })
+  const read = unwrap(await callCateApi('cate.storage.get', { key }))
+
+  const keys = unwrap(await callCateApi('cate.storage.keys'))
+  const keysIncluded = Array.isArray(keys) && keys.includes(key)
+
+  await callCateApi('cate.storage.delete', { key })
+  const afterDelete = unwrap(await callCateApi('cate.storage.get', { key }))
+  const deleted = afterDelete == null
+
+  const notifyRes = unwrap(await callCateApi('cate.ui.notify', {
+    message: 'Kitchen Sink server round-trip',
+    level: 'info',
+  })) as { ok?: boolean } | undefined
+  const notified = notifyRes?.ok === true
+
+  const version = unwrap(await callCateApi('cate.version'))
+
+  return {
+    ok: read === stamp && keysIncluded && deleted && notified,
+    wrote: stamp,
+    read,
+    keysIncluded,
+    deleted,
+    notified,
+    version,
+  }
 }
 
 // ---------------------------------------------------------------------------
