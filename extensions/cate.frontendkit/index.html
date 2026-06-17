@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kitchen Sink — Cate Extension API Demo</title>
+  <title>Frontend Kit — Cate Frontend-only API Demo</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header>
-    <h1>Kitchen Sink</h1>
-    <p class="sub">A server-backed extension that exercises the whole Cate extension stack.</p>
+    <h1>Frontend Kit</h1>
+    <p class="sub">A frontend-only extension (no server) that exercises the whole
+      <code>window.cate</code> bridge — served as static assets by Cate's proxy.</p>
   </header>
 
   <!-- ================= cateHost bridge ================= -->
@@ -22,7 +23,7 @@
     <p class="note">Theme tokens above are applied to this panel's colors via <code>cate.theme.get</code>.</p>
   </section>
 
-  <!-- ================= storage autosave ================= -->
+  <!-- ================= storage ================= -->
   <section data-proves="cate.storage.get/set (persisted UI state, autosave)">
     <h2>Notes (autosaved via cate.storage)</h2>
     <textarea id="notes" rows="4" placeholder="Type here — autosaved to cate.storage and restored on reopen…"></textarea>
@@ -40,51 +41,21 @@
     <div class="row"><span class="label">keys</span><code id="keys-out">—</code></div>
     <div class="row"><span class="label">panel counter</span><code id="panel-counter">—</code></div>
     <div class="row"><span class="label">onChange events</span><code id="change-count">0</code></div>
-    <p class="note">Spawn a second panel and edit its notes — this panel's
+    <p class="note">Open the second panel ("About") and edit its notes — this panel's
       <code>storage.onChange</code> counter ticks. The panel counter uses
       <code>cate.storage.panel.set/get</code>, isolated to THIS panel id.</p>
   </section>
 
   <!-- ================= reverse-API actions ================= -->
-  <section data-proves="cate.editor.openFile / cate.canvas.createPanel / cate.panel.setTitle">
+  <section data-proves="cate.editor.openFile / cate.canvas.createPanel / cate.panel.setTitle / cate.ui.notify">
     <h2>Cate actions (reverse API)</h2>
     <div class="row">
       <button id="open-file">Open package.json in Cate</button>
       <button id="open-file-line">Open at line 2</button>
-      <button id="spawn-panel">Spawn another Kitchen Sink panel</button>
+      <button id="spawn-panel">Spawn the About panel</button>
       <button id="set-title">Set panel title</button>
       <button id="notify">ui.notify</button>
     </div>
-  </section>
-
-  <!-- ================= HTTP tunnel ================= -->
-  <section data-proves="HTTP tunnel (page → proxy → daemon-hosted server)">
-    <h2>HTTP tunnel to our own server</h2>
-    <div class="row">
-      <button id="call-info">GET /api/info</button>
-      <button id="call-echo">POST /api/echo</button>
-    </div>
-    <pre id="http-out">—</pre>
-  </section>
-
-  <!-- ================= WebSocket tunnel ================= -->
-  <section data-proves="WebSocket tunnel (WS upgrade through the proxy)">
-    <h2>WebSocket echo</h2>
-    <div class="row">
-      <input id="ws-input" type="text" value="hello over websocket" />
-      <button id="ws-send">Send over WS</button>
-    </div>
-    <pre id="ws-out">WebSocket: connecting…</pre>
-  </section>
-
-  <!-- ================= CATE_API reverse ================= -->
-  <section data-proves="CATE_API reverse channel (server → Cate)">
-    <h2>Server → Cate round-trip</h2>
-    <p class="note">Hits <code>POST /api/cate-roundtrip</code>; the SERVER calls back into Cate
-      via <code>CATE_API</code>, exercising the full main-handled surface:
-      <code>storage.set/get/keys/delete</code>, <code>ui.notify</code>, and <code>version</code>.</p>
-    <div class="row"><button id="roundtrip">Run server → Cate round-trip</button></div>
-    <pre id="roundtrip-out">—</pre>
   </section>
 
   <pre id="log"></pre>

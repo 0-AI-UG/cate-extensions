@@ -82,7 +82,9 @@ function applyTheme(theme: CateHostTheme): void {
 // --- storage autosave -------------------------------------------------------
 
 const NOTES_KEY = 'kitchensink:notes'
+const PANEL_COUNTER_KEY = 'counter'
 let saveTimer: ReturnType<typeof setTimeout> | null = null
+let changeCount = 0
 
 async function initNotes(): Promise<void> {
   if (!window.cate) return
@@ -106,8 +108,61 @@ async function initNotes(): Promise<void> {
       }
     }, 400)
   })
-  // React to external/other-panel storage edits.
-  cate.storage.onChange(() => log('storage.change event received'))
+  // React to external/other-panel storage edits — surface a live count so a
+  // second panel editing its notes visibly ticks this panel's counter.
+  cate.storage.onChange((key) => {
+    changeCount += 1
+    set('change-count', String(changeCount))
+    log('storage.change event received', key ? `(key: ${key})` : '')
+  })
+}
+
+// --- storage full API (delete / keys / panel-scoped) ------------------------
+
+async function initStorageApi(): Promise<void> {
+  if (!window.cate) return
+
+  byId('storage-keys').addEventListener('click', async () => {
+    try {
+      const keys = await cate.storage.keys()
+      set('keys-out', keys.length ? keys.join(', ') : '(none)')
+    } catch (err) {
+      set('keys-out', 'error: ' + String(err))
+    }
+  })
+
+  byId('storage-delete-notes').addEventListener('click', async () => {
+    try {
+      await cate.storage.delete(NOTES_KEY)
+      byId<HTMLTextAreaElement>('notes').value = ''
+      set('notes-status', 'deleted')
+      log('storage.delete', NOTES_KEY)
+    } catch (err) {
+      log('storage.delete failed:', String(err))
+    }
+  })
+
+  // Panel-scoped counter: persisted under THIS panel's id, so each panel
+  // instance keeps its own value (proves cate.storage.panel.get/set).
+  const showCounter = async (): Promise<void> => {
+    try {
+      const cur = await cate.storage.panel.get(PANEL_COUNTER_KEY)
+      set('panel-counter', typeof cur === 'number' ? String(cur) : '0')
+    } catch (err) {
+      set('panel-counter', 'error: ' + String(err))
+    }
+  }
+  byId('panel-bump').addEventListener('click', async () => {
+    try {
+      const cur = await cate.storage.panel.get(PANEL_COUNTER_KEY)
+      const next = (typeof cur === 'number' ? cur : 0) + 1
+      await cate.storage.panel.set(PANEL_COUNTER_KEY, next)
+      set('panel-counter', String(next))
+    } catch (err) {
+      set('panel-counter', 'error: ' + String(err))
+    }
+  })
+  await showCounter()
 }
 
 // --- reverse-API actions ----------------------------------------------------
@@ -119,6 +174,24 @@ function initActions(): void {
       log('editor.openFile package.json ->', res)
     } catch (err) {
       log('editor.openFile failed:', String(err))
+    }
+  })
+
+  byId('open-file-line').addEventListener('click', async () => {
+    try {
+      const res = await cate.editor.openFile('package.json', { line: 2, column: 3 })
+      log('editor.openFile package.json @2:3 ->', res)
+    } catch (err) {
+      log('editor.openFile (line) failed:', String(err))
+    }
+  })
+
+  byId('notify').addEventListener('click', async () => {
+    try {
+      const res = await cate.ui.notify('Hello from Kitchen Sink', 'info')
+      log('ui.notify ->', res)
+    } catch (err) {
+      log('ui.notify failed:', String(err))
     }
   })
 
@@ -232,6 +305,7 @@ function initRoundtrip(): void {
 
 initBridge()
 initNotes()
+initStorageApi()
 initActions()
 initHttp()
 initWs()

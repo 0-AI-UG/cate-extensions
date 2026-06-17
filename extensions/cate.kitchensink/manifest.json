@@ -8,5 +8,5 @@
     "readyPath": "/health",
     "portEnv": "PORT"
   },
-  "cateApi": ["storage", "editor", "canvas", "theme"]
+  "cateApi": ["storage", "editor", "canvas", "theme", "ui"]
 }
