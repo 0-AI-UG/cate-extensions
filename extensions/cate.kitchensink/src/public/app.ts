@@ -305,9 +305,7 @@ function initAgent(): void {
       if ('error' in res) {
         transcript.push('error: ' + res.error)
       } else {
-        // Show the flattened text, and the raw message so the whole thing is visible.
         transcript.push('agent: ' + (res.text || '(no text)'))
-        log('agent message ->', res.message)
       }
     } catch (err) {
       transcript.push('error: ' + String(err))
