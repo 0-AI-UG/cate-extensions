@@ -14,7 +14,49 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Validate every PR by building the catalog. No deploy.
+  # Discover the extensions so the build matrix self-updates as new ones land.
+  discover:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      extensions: ${{ steps.list.outputs.extensions }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        name: List extensions
+        run: |
+          ids=$(ls -d extensions/*/ | xargs -n1 basename | jq -R . | jq -cs .)
+          echo "extensions=$ids" >> "$GITHUB_OUTPUT"
+
+  # Build each extension on its own so a failure points at the exact extension.
+  build-extension:
+    needs: discover
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        extension: ${{ fromJSON(needs.discover.outputs.extensions) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build ${{ matrix.extension }}
+        working-directory: extensions/${{ matrix.extension }}
+        run: |
+          # Every extension must have a valid manifest.json.
+          node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8'))"
+          # TypeScript extensions (those with a package.json) compile; tsc emit
+          # also typechecks. Asset-only extensions have nothing to build.
+          if [ -f package.json ]; then
+            npm install --no-audit --no-fund
+            npm run build
+          else
+            echo "$PWD is asset-only, nothing to build"
+          fi
+
+  # Validate the catalog packages + index assemble from all extensions together.
   build:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
