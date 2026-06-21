@@ -16,5 +16,5 @@
       "defaultSize": { "width": 360, "height": 280 }
     }
   ],
-  "cateApi": ["storage", "editor", "canvas", "theme", "ui"]
+  "cateApi": ["storage", "editor", "canvas", "theme", "ui", "workspace.read"]
 }

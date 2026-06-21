@@ -20,6 +20,8 @@
 //   GET  /ws                 -> WebSocket echo                      [WS tunnel]
 //   POST /api/cate-roundtrip -> server drives CATE_API storage.set/get/keys/
 //                               delete + ui.notify + version            [reverse]
+//   POST /api/agent-run      -> server asks Cate's bundled agent to run one
+//                               turn via cate.agent.run                  [reverse]
 //
 // Each route proves a specific layer of the stack; the page labels them.
 // =============================================================================
@@ -286,6 +288,40 @@ const server = http.createServer(async (req, res) => {
     try {
       const result = await cateRoundtrip()
       sendJson(res, 200, result)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      sendJson(res, 500, { ok: false, error: message })
+    }
+    return
+  }
+
+  // POST /api/agent-run — the SERVER asks Cate's bundled agent to run ONE turn
+  // via cate.agent.run (requires the `agent` scope + first-use user consent).
+  // This is the canonical pattern for a server-backed extension that wants to
+  // delegate work to the agent (e.g. "implement this task"). cate.agent.run is
+  // long-lived — it resolves only when the agent finishes — so we don't impose
+  // our own timeout here.
+  if (pathname === '/api/agent-run' && req.method === 'POST') {
+    const raw = await readBody(req)
+    let prompt = ''
+    try {
+      prompt = String((JSON.parse(raw || '{}') as { prompt?: unknown }).prompt ?? '')
+    } catch {
+      /* keep '' — handled below */
+    }
+    if (!prompt.trim()) {
+      sendJson(res, 400, { ok: false, error: 'prompt required' })
+      return
+    }
+    try {
+      const result = unwrap(await callCateApi('cate.agent.run', { prompt })) as
+        | { text?: string; error?: string }
+        | undefined
+      if (result && typeof result.error === 'string') {
+        sendJson(res, 200, { ok: false, error: result.error })
+        return
+      }
+      sendJson(res, 200, { ok: true, text: result?.text ?? '' })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       sendJson(res, 500, { ok: false, error: message })

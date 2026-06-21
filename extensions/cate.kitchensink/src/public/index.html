@@ -87,6 +87,21 @@
     <pre id="roundtrip-out">—</pre>
   </section>
 
+  <!-- ================= agent run ================= -->
+  <section data-proves="cate.agent.run (server delegates a turn to Cate's bundled agent)">
+    <h2>Run the agent</h2>
+    <p class="note">Hits <code>POST /api/agent-run</code>; the SERVER calls
+      <code>cate.agent.run</code> over <code>CATE_API</code>, so Cate's bundled
+      agent runs one turn (first use prompts for consent; the run shows in the
+      Agent panel and resolves with its final text). This is how a server-backed
+      extension delegates work to the agent.</p>
+    <div class="row">
+      <input id="agent-input" type="text" value="Summarize this project's README in one sentence." />
+      <button id="agent-run">Run agent turn</button>
+    </div>
+    <pre id="agent-out">—</pre>
+  </section>
+
   <pre id="log"></pre>
   <script src="app.js"></script>
 </body>
