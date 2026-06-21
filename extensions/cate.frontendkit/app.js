@@ -1,14 +1,7 @@
 // @ts-check
 /// <reference path="./cate-host.d.ts" />
-// =============================================================================
-// Frontend Kit panel — drives every layer of the Cate extension bridge that is
-// reachable WITHOUT a server. This is a frontend-only extension: Cate serves
-// these static assets directly through its proxy (no daemon-hosted server, no
-// HTTP/WS tunnel, no CATE_API). Everything here goes through `window.cate`.
-//
-// Plain classic script (no module syntax) so it loads via <script src> under a
-// strict CSP and stays trivially testable in a DOM harness.
-// =============================================================================
+// Frontend-only extension: Cate serves these static assets and the panel talks
+// to Cate through the injected window.cate bridge. Classic script, no modules.
 
 /** @param {unknown[]} args */
 function log(...args) {
@@ -32,12 +25,11 @@ function byId(id) {
   return el
 }
 
-// --- cateHost bridge --------------------------------------------------------
+// --- bridge -----------------------------------------------------------------
 
 async function initBridge() {
   if (!window.cate) {
-    set('version', 'window.cate missing — preload not injected')
-    log('FATAL: cateHost preload not injected')
+    set('version', 'window.cate missing')
     return
   }
   try {
@@ -63,8 +55,7 @@ async function initBridge() {
   }
 }
 
-/** Map a few Cate app theme tokens onto our CSS variables, probing common
- *  names and falling back gracefully.
+/** Map Cate's theme background/foreground onto our CSS variables.
  *  @param {CateHostTheme} theme */
 function applyTheme(theme) {
   const app = theme.app || {}
@@ -76,13 +67,8 @@ function applyTheme(theme) {
   const root = document.documentElement.style
   const bg = pick('editor-bg', 'app-bg', 'bg', 'background')
   const fg = pick('editor-fg', 'app-fg', 'fg', 'foreground', 'text')
-  const accent = pick('accent', 'focus', 'primary', 'link')
-  const panel = pick('panel-bg', 'sidebar-bg', 'titlebar-bg')
   if (bg) root.setProperty('--fk-bg', bg)
   if (fg) root.setProperty('--fk-fg', fg)
-  if (accent) root.setProperty('--fk-accent', accent)
-  if (panel) root.setProperty('--fk-panel', panel)
-  document.documentElement.dataset.themeType = theme.type || 'dark'
 }
 
 // --- storage ----------------------------------------------------------------
@@ -104,22 +90,21 @@ async function initNotes() {
     set('notes-status', 'no prior value')
   }
   notes.addEventListener('input', () => {
-    set('notes-status', 'editing…')
+    set('notes-status', 'editing')
     if (saveTimer) clearTimeout(saveTimer)
     saveTimer = setTimeout(async () => {
       try {
         await cate.storage.set(NOTES_KEY, notes.value)
-        set('notes-status', 'autosaved ✓')
+        set('notes-status', 'autosaved')
       } catch (err) {
         set('notes-status', 'save failed: ' + String(err))
       }
     }, 400)
   })
-  // React to external/other-panel storage edits — surface a live count.
   cate.storage.onChange((key) => {
     changeCount += 1
     set('change-count', String(changeCount))
-    log('storage.change event received', key ? `(key: ${key})` : '')
+    log('storage.change', key ? `(${key})` : '')
   })
 }
 
@@ -140,14 +125,12 @@ async function initStorageApi() {
       await cate.storage.delete(NOTES_KEY)
       ;(/** @type {HTMLTextAreaElement} */ (byId('notes'))).value = ''
       set('notes-status', 'deleted')
-      log('storage.delete', NOTES_KEY)
     } catch (err) {
       log('storage.delete failed:', String(err))
     }
   })
 
-  // Panel-scoped counter: persisted under THIS panel's id, so each panel
-  // instance keeps its own value (proves cate.storage.panel.get/set).
+  // Counter persisted under this panel's id via cate.storage.panel.
   byId('panel-bump').addEventListener('click', async () => {
     try {
       const cur = await cate.storage.panel.get(PANEL_COUNTER_KEY)
@@ -167,15 +150,14 @@ async function initStorageApi() {
   }
 }
 
-// --- reverse-API actions ----------------------------------------------------
+// --- actions ----------------------------------------------------------------
 
 function initActions() {
   if (!window.cate) return
 
   byId('open-file').addEventListener('click', async () => {
     try {
-      const res = await cate.editor.openFile('package.json')
-      log('editor.openFile package.json ->', res)
+      log('editor.openFile ->', await cate.editor.openFile('package.json'))
     } catch (err) {
       log('editor.openFile failed:', String(err))
     }
@@ -183,10 +165,9 @@ function initActions() {
 
   byId('open-file-line').addEventListener('click', async () => {
     try {
-      const res = await cate.editor.openFile('package.json', { line: 2, column: 3 })
-      log('editor.openFile package.json @2:3 ->', res)
+      log('editor.openFile @2:3 ->', await cate.editor.openFile('package.json', { line: 2, column: 3 }))
     } catch (err) {
-      log('editor.openFile (line) failed:', String(err))
+      log('editor.openFile failed:', String(err))
     }
   })
 
@@ -215,15 +196,12 @@ function initActions() {
 
   byId('notify').addEventListener('click', async () => {
     try {
-      const res = await cate.ui.notify('Hello from Frontend Kit', 'info')
-      log('ui.notify ->', res)
+      log('ui.notify ->', await cate.ui.notify('Hello from Frontend Kit', 'info'))
     } catch (err) {
       log('ui.notify failed:', String(err))
     }
   })
 }
-
-// --- boot -------------------------------------------------------------------
 
 initBridge()
 initNotes()

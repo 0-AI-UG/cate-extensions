@@ -1,10 +1,6 @@
-// =============================================================================
-// Kitchen Sink panel — drives every layer of the Cate extension stack from the
-// page. CSP-safe: this is an external script, no inline JS. All requests/WS go
-// to RELATIVE URLs so they resolve under /ext/<routeToken>/ and tunnel through
-// the proxy (which injects the bearer); the page itself never holds a token.
-// Authored in TypeScript; `npm run build` compiles this to dist/public/app.js.
-// =============================================================================
+// Kitchen Sink panel. External script (CSP-safe, no inline JS). All fetch/WS use
+// relative URLs so they resolve under /ext/<routeToken>/ and tunnel through the
+// proxy, which injects the bearer; the page never holds a token.
 
 const logEl = document.getElementById('log') as HTMLElement
 
@@ -23,16 +19,14 @@ function byId<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T
 }
 
-// Base path for our own server, e.g. "/ext/<routeToken>/". location.pathname is
-// either that dir or a file under it; trim to the trailing slash.
+// Base path for our own server, e.g. "/ext/<routeToken>/".
 const BASE = location.pathname.replace(/[^/]*$/, '')
 
-// --- cateHost bridge --------------------------------------------------------
+// --- bridge -----------------------------------------------------------------
 
 async function initBridge(): Promise<void> {
   if (!window.cate) {
-    set('version', 'window.cate missing — preload not injected')
-    log('FATAL: cateHost preload not injected')
+    set('version', 'window.cate missing')
     return
   }
   try {
@@ -49,7 +43,6 @@ async function initBridge(): Promise<void> {
     set('workspace', 'error: ' + String(err))
   }
 
-  // Apply theme tokens to the panel's CSS variables.
   try {
     const theme = await cate.theme.get()
     set('theme', `${theme.id} (${theme.type})`)
@@ -59,8 +52,7 @@ async function initBridge(): Promise<void> {
   }
 }
 
-/** Map a few Cate app theme tokens onto our CSS variables. Token keys vary by
- *  theme, so we probe several common names and fall back gracefully. */
+/** Map Cate's theme background/foreground onto our CSS variables. */
 function applyTheme(theme: CateHostTheme): void {
   const app = theme.app || {}
   const pick = (...keys: string[]): string | null => {
@@ -70,16 +62,11 @@ function applyTheme(theme: CateHostTheme): void {
   const root = document.documentElement.style
   const bg = pick('editor-bg', 'app-bg', 'bg', 'background')
   const fg = pick('editor-fg', 'app-fg', 'fg', 'foreground', 'text')
-  const accent = pick('accent', 'focus', 'primary', 'link')
-  const panel = pick('panel-bg', 'sidebar-bg', 'titlebar-bg')
   if (bg) root.setProperty('--ks-bg', bg)
   if (fg) root.setProperty('--ks-fg', fg)
-  if (accent) root.setProperty('--ks-accent', accent)
-  if (panel) root.setProperty('--ks-panel', panel)
-  document.documentElement.dataset.themeType = theme.type || 'dark'
 }
 
-// --- storage autosave -------------------------------------------------------
+// --- storage ----------------------------------------------------------------
 
 const NOTES_KEY = 'kitchensink:notes'
 const PANEL_COUNTER_KEY = 'counter'
@@ -97,27 +84,23 @@ async function initNotes(): Promise<void> {
     set('notes-status', 'no prior value')
   }
   notes.addEventListener('input', () => {
-    set('notes-status', 'editing…')
+    set('notes-status', 'editing')
     if (saveTimer) clearTimeout(saveTimer)
     saveTimer = setTimeout(async () => {
       try {
         await cate.storage.set(NOTES_KEY, notes.value)
-        set('notes-status', 'autosaved ✓')
+        set('notes-status', 'autosaved')
       } catch (err) {
         set('notes-status', 'save failed: ' + String(err))
       }
     }, 400)
   })
-  // React to external/other-panel storage edits — surface a live count so a
-  // second panel editing its notes visibly ticks this panel's counter.
   cate.storage.onChange((key) => {
     changeCount += 1
     set('change-count', String(changeCount))
-    log('storage.change event received', key ? `(key: ${key})` : '')
+    log('storage.change', key ? `(${key})` : '')
   })
 }
-
-// --- storage full API (delete / keys / panel-scoped) ------------------------
 
 async function initStorageApi(): Promise<void> {
   if (!window.cate) return
@@ -136,22 +119,12 @@ async function initStorageApi(): Promise<void> {
       await cate.storage.delete(NOTES_KEY)
       byId<HTMLTextAreaElement>('notes').value = ''
       set('notes-status', 'deleted')
-      log('storage.delete', NOTES_KEY)
     } catch (err) {
       log('storage.delete failed:', String(err))
     }
   })
 
-  // Panel-scoped counter: persisted under THIS panel's id, so each panel
-  // instance keeps its own value (proves cate.storage.panel.get/set).
-  const showCounter = async (): Promise<void> => {
-    try {
-      const cur = await cate.storage.panel.get(PANEL_COUNTER_KEY)
-      set('panel-counter', typeof cur === 'number' ? String(cur) : '0')
-    } catch (err) {
-      set('panel-counter', 'error: ' + String(err))
-    }
-  }
+  // Counter persisted under this panel's id via cate.storage.panel.
   byId('panel-bump').addEventListener('click', async () => {
     try {
       const cur = await cate.storage.panel.get(PANEL_COUNTER_KEY)
@@ -162,16 +135,21 @@ async function initStorageApi(): Promise<void> {
       set('panel-counter', 'error: ' + String(err))
     }
   })
-  await showCounter()
+
+  try {
+    const cur = await cate.storage.panel.get(PANEL_COUNTER_KEY)
+    set('panel-counter', typeof cur === 'number' ? String(cur) : '0')
+  } catch {
+    set('panel-counter', '0')
+  }
 }
 
-// --- reverse-API actions ----------------------------------------------------
+// --- actions ----------------------------------------------------------------
 
 function initActions(): void {
   byId('open-file').addEventListener('click', async () => {
     try {
-      const res = await cate.editor.openFile('package.json')
-      log('editor.openFile package.json ->', res)
+      log('editor.openFile ->', await cate.editor.openFile('package.json'))
     } catch (err) {
       log('editor.openFile failed:', String(err))
     }
@@ -179,17 +157,15 @@ function initActions(): void {
 
   byId('open-file-line').addEventListener('click', async () => {
     try {
-      const res = await cate.editor.openFile('package.json', { line: 2, column: 3 })
-      log('editor.openFile package.json @2:3 ->', res)
+      log('editor.openFile @2:3 ->', await cate.editor.openFile('package.json', { line: 2, column: 3 }))
     } catch (err) {
-      log('editor.openFile (line) failed:', String(err))
+      log('editor.openFile failed:', String(err))
     }
   })
 
   byId('notify').addEventListener('click', async () => {
     try {
-      const res = await cate.ui.notify('Hello from Kitchen Sink', 'info')
-      log('ui.notify ->', res)
+      log('ui.notify ->', await cate.ui.notify('Hello from Kitchen Sink', 'info'))
     } catch (err) {
       log('ui.notify failed:', String(err))
     }
@@ -218,61 +194,49 @@ function initActions(): void {
   })
 }
 
-// --- HTTP tunnel ------------------------------------------------------------
+// --- http to our own server -------------------------------------------------
 
 function initHttp(): void {
   byId('call-info').addEventListener('click', async () => {
     try {
       const res = await fetch(BASE + 'api/info')
-      const json = await res.json()
-      byId('http-out').textContent = 'GET /api/info -> ' + JSON.stringify(json, null, 2)
+      byId('http-out').textContent = JSON.stringify(await res.json(), null, 2)
     } catch (err) {
-      byId('http-out').textContent = 'GET /api/info failed: ' + String(err)
+      byId('http-out').textContent = 'failed: ' + String(err)
     }
   })
 
   byId('call-echo').addEventListener('click', async () => {
     try {
-      const body = { hello: 'from the page', at: Date.now() }
       const res = await fetch(BASE + 'api/echo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ hello: 'from the page', at: Date.now() }),
       })
-      const json = await res.json()
-      byId('http-out').textContent = 'POST /api/echo -> ' + JSON.stringify(json, null, 2)
+      byId('http-out').textContent = JSON.stringify(await res.json(), null, 2)
     } catch (err) {
-      byId('http-out').textContent = 'POST /api/echo failed: ' + String(err)
+      byId('http-out').textContent = 'failed: ' + String(err)
     }
   })
 }
 
-// --- WebSocket tunnel -------------------------------------------------------
+// --- websocket --------------------------------------------------------------
 
 let ws: WebSocket | null = null
 
 function initWs(): void {
   const out = byId('ws-out')
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsUrl = proto + '//' + location.host + BASE + 'ws'
   try {
-    ws = new WebSocket(wsUrl)
+    ws = new WebSocket(proto + '//' + location.host + BASE + 'ws')
   } catch (err) {
-    out.textContent = 'WebSocket construction failed: ' + String(err)
+    out.textContent = 'failed: ' + String(err)
     return
   }
-  ws.onopen = () => {
-    out.textContent = 'WebSocket open ✓'
-  }
-  ws.onmessage = (e) => {
-    out.textContent += '\n< ' + e.data
-  }
-  ws.onerror = () => {
-    out.textContent += '\nWebSocket error'
-  }
-  ws.onclose = () => {
-    out.textContent += '\nWebSocket closed'
-  }
+  ws.onopen = () => { out.textContent = 'open' }
+  ws.onmessage = (e) => { out.textContent += '\n< ' + e.data }
+  ws.onerror = () => { out.textContent += '\nerror' }
+  ws.onclose = () => { out.textContent += '\nclosed' }
 
   byId('ws-send').addEventListener('click', () => {
     const msg = byId<HTMLInputElement>('ws-input').value
@@ -280,34 +244,34 @@ function initWs(): void {
       ws.send(msg)
       out.textContent += '\n> ' + msg
     } else {
-      out.textContent += '\nWS not open'
+      out.textContent += '\nnot open'
     }
   })
 }
 
-// --- CATE_API reverse -------------------------------------------------------
+// --- server to cate (CATE_API) ----------------------------------------------
 
 function initRoundtrip(): void {
   byId('roundtrip').addEventListener('click', async () => {
     const out = byId('roundtrip-out')
-    out.textContent = 'running…'
+    out.textContent = 'running'
     try {
       const res = await fetch(BASE + 'api/cate-roundtrip', { method: 'POST' })
       const json = await res.json()
-      out.textContent = (json.ok ? 'OK ✓ ' : 'MISMATCH ✗ ') + JSON.stringify(json, null, 2)
+      out.textContent = (json.ok ? 'ok ' : 'mismatch ') + JSON.stringify(json, null, 2)
     } catch (err) {
       out.textContent = 'failed: ' + String(err)
     }
   })
 }
 
-// --- agent run --------------------------------------------------------------
+// --- agent ------------------------------------------------------------------
 
 function initAgent(): void {
   byId('agent-run').addEventListener('click', async () => {
     const out = byId('agent-out')
     const prompt = byId<HTMLInputElement>('agent-input').value
-    out.textContent = 'running… (the agent turn appears in Cate\'s Agent panel)'
+    out.textContent = 'running (turn appears in the Agent panel)'
     try {
       const res = await fetch(BASE + 'api/agent-run', {
         method: 'POST',
@@ -315,14 +279,12 @@ function initAgent(): void {
         body: JSON.stringify({ prompt }),
       })
       const json = await res.json()
-      out.textContent = json.ok ? 'agent ✓\n' + (json.text || '(no text)') : 'failed: ' + json.error
+      out.textContent = json.ok ? json.text || '(no text)' : 'failed: ' + json.error
     } catch (err) {
       out.textContent = 'failed: ' + String(err)
     }
   })
 }
-
-// --- boot -------------------------------------------------------------------
 
 initBridge()
 initNotes()

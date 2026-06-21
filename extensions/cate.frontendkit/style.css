@@ -2,8 +2,6 @@
   /* Defaults; overridden at runtime from cate.theme.get tokens. */
   --fk-bg: #1e1e2e;
   --fk-fg: #cdd6f4;
-  --fk-accent: #89b4fa;
-  --fk-panel: #313244;
   color-scheme: dark light;
   font-family: system-ui, -apple-system, sans-serif;
 }
@@ -12,46 +10,16 @@
 
 body {
   margin: 0;
-  padding: 20px;
+  padding: 16px;
   font-size: 13px;
   line-height: 1.5;
   background: var(--fk-bg);
   color: var(--fk-fg);
 }
 
-header { margin-bottom: 16px; }
-h1 { font-size: 18px; margin: 0; }
-.sub { margin: 4px 0 0; opacity: 0.7; }
-
-h2 {
-  font-size: 12px;
-  margin: 0 0 8px;
-  opacity: 0.75;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-section {
-  position: relative;
-  margin-bottom: 14px;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--fk-fg) 18%, transparent);
-  border-left: 3px solid var(--fk-accent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--fk-panel) 35%, transparent);
-}
-
-/* Surface what each section proves about the stack. */
-section::after {
-  content: attr(data-proves);
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  font-size: 10px;
-  opacity: 0.45;
-  max-width: 50%;
-  text-align: right;
-}
+h1 { font-size: 16px; margin: 0 0 12px; }
+h2 { font-size: 12px; margin: 0 0 6px; opacity: 0.7; }
+section { margin-bottom: 16px; }
 
 .row {
   display: flex;
@@ -61,7 +29,6 @@ section::after {
   flex-wrap: wrap;
 }
 .label { min-width: 90px; opacity: 0.7; }
-.note { margin: 6px 0 0; font-size: 12px; opacity: 0.65; }
 
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -79,21 +46,21 @@ textarea {
   border-radius: 4px;
   background: transparent;
   color: inherit;
-  font-family: inherit;
+  font: inherit;
   font-size: 13px;
 }
 textarea { resize: vertical; }
 
 button {
   padding: 5px 12px;
-  border: 1px solid var(--fk-accent);
+  border: 1px solid color-mix(in srgb, var(--fk-fg) 30%, transparent);
   border-radius: 4px;
-  background: color-mix(in srgb, var(--fk-accent) 18%, transparent);
+  background: color-mix(in srgb, var(--fk-fg) 10%, transparent);
   color: inherit;
   cursor: pointer;
   font-size: 12px;
 }
-button:hover { background: color-mix(in srgb, var(--fk-accent) 35%, transparent); }
+button:hover { background: color-mix(in srgb, var(--fk-fg) 20%, transparent); }
 
 pre {
   margin: 8px 0 0;
@@ -106,8 +73,4 @@ pre {
   font-size: 12px;
 }
 
-#log {
-  margin-top: 16px;
-  opacity: 0.8;
-  max-height: 120px;
-}
+#log { margin-top: 12px; opacity: 0.8; max-height: 120px; }

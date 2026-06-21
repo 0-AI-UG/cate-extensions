@@ -1,6 +1,6 @@
 {
   "id": "cate.frontendkit",
-  "name": "Frontend Kit (Frontend-only API Demo)",
+  "name": "Frontend Kit",
   "version": "1.0.0",
   "frontend": "index.html",
   "panels": [

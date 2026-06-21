@@ -1,6 +1,6 @@
 {
   "id": "cate.kitchensink",
-  "name": "Kitchen Sink (Extension API Demo)",
+  "name": "Kitchen Sink",
   "version": "1.0.0",
   "panels": [{ "id": "main", "label": "Kitchen Sink" }],
   "server": {
