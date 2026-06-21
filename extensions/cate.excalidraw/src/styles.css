@@ -1,0 +1,25 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Excalidraw needs an explicitly sized container; fill the whole panel. */
+.excal-root {
+  position: fixed;
+  inset: 0;
+}
+
+.excal-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 13px;
+  opacity: 0.6;
+}
