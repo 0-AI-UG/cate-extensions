@@ -301,6 +301,27 @@ function initRoundtrip(): void {
   })
 }
 
+// --- agent run --------------------------------------------------------------
+
+function initAgent(): void {
+  byId('agent-run').addEventListener('click', async () => {
+    const out = byId('agent-out')
+    const prompt = byId<HTMLInputElement>('agent-input').value
+    out.textContent = 'running… (the agent turn appears in Cate\'s Agent panel)'
+    try {
+      const res = await fetch(BASE + 'api/agent-run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      })
+      const json = await res.json()
+      out.textContent = json.ok ? 'agent ✓\n' + (json.text || '(no text)') : 'failed: ' + json.error
+    } catch (err) {
+      out.textContent = 'failed: ' + String(err)
+    }
+  })
+}
+
 // --- boot -------------------------------------------------------------------
 
 initBridge()
@@ -310,3 +331,4 @@ initActions()
 initHttp()
 initWs()
 initRoundtrip()
+initAgent()

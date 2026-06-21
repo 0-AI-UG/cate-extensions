@@ -64,6 +64,13 @@ interface CateHost {
   ui: {
     notify(message: string, level?: 'info' | 'warn' | 'error'): Promise<unknown>
   }
+  /** Run one background turn through Cate's bundled agent (requires the `agent`
+   *  scope + first-use user consent). Resolves with the agent's final text.
+   *  Long-lived — a turn can take minutes. One run per extension at a time. */
+  agent: {
+    run(prompt: string): Promise<{ text: string } | { error: string }>
+    cancel(): Promise<unknown>
+  }
   storage: CateHostStorage
 }
 
