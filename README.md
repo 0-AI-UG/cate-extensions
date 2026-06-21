@@ -102,7 +102,7 @@ cate-extensions/
 | `version` | SemVer; the artifact is `<id>-<version>.tgz`. |
 | `panels` | `[{ id, label }]` — panels the extension contributes. |
 | `server` | Optional, for server-backed extensions: `{ command, readyPath, portEnv }`. |
-| `cateApi` | Capabilities the extension uses (`storage`, `editor`, `canvas`, `theme`, …). |
+| `cateApi` | Scopes the extension uses; default-deny and enforced by the host. One of `workspace.read`, `theme`, `ui`, `editor.read`/`editor.write`, `storage`, `canvas`, `agent` (a bare namespace like `editor` grants its sub-scopes). |
 | `description` | Optional; overrides the README first line in the catalog. |
 
 ## Verifying an extension in the running app
@@ -118,4 +118,5 @@ panel and check each stack layer. For the kitchen-sink demo:
 | **HTTP tunnel** | `GET /api/info` returns workspace/pid/time; `POST /api/echo` echoes the body. | Page → proxy → daemon-hosted server HTTP tunneling. |
 | **WebSocket echo** | Shows "WebSocket open"; sending round-trips `echo: <message>`. | WS upgrade tunneling. |
 | **Server → Cate round-trip** | Prints `OK` with matching `wrote`/`read`. | `CATE_API` reverse channel. |
+| **Run the agent** | Enter a prompt and run; first use prompts for consent, the turn appears in the Agent panel, and the final text shows in the panel. | `cate.agent.run` (server delegates a turn to Cate's bundled agent). |
 | **CATE_TOKEN injection** | The page loads and works at all (server 401s any non-`/health` request lacking the bearer). | The proxy injects `Authorization: Bearer <CATE_TOKEN>`. |

@@ -16,6 +16,7 @@ dependency-free at runtime (Node `http` + raw WebSocket frames), so the shipped
 | **WebSocket tunnel** | `GET /ws` | The page opens a WS to its server and round-trips a message, proving WS upgrade tunneling. |
 | **CATE_TOKEN injection** | `src/server.ts` | Every non-`/health` request REQUIRES `Authorization: Bearer ${CATE_TOKEN}` and 401s otherwise. The webview never holds the token; the proxy injects it. |
 | **CATE_API reverse (server → Cate)** | `POST /api/cate-roundtrip` | The SERVER calls back into Cate via `process.env.CATE_API`, exercising the full main-handled surface: `storage.set/get/keys/delete`, `ui.notify`, and `version`. |
+| **Agent (server → bundled agent)** | `POST /api/agent-run` | The SERVER calls `cate.agent.run` over `CATE_API` so Cate's bundled agent runs one turn and returns its final text. Requires the `agent` scope; first use prompts for consent and the run is visible/interruptible in the Agent panel. The canonical pattern for delegating work to the agent. |
 | **Readiness probe** | `GET /health` | Returns 200, auth-exempt — Cate's probe target. |
 
 ## How Cate runs it
