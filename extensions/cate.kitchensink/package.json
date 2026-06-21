@@ -2,7 +2,7 @@
   "name": "cate.kitchensink",
   "version": "1.0.0",
   "private": true,
-  "description": "Kitchen Sink — a server-backed Cate extension that exercises the full extension API.",
+  "description": "Kitchen Sink, a server-backed Cate extension demo.",
   "scripts": {
     "build": "tsc -p tsconfig.server.json && tsc -p tsconfig.browser.json && node ./copy-static.mjs",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",

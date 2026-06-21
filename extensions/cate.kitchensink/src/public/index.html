@@ -3,103 +3,75 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kitchen Sink — Cate Extension API Demo</title>
+  <title>Kitchen Sink</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header>
-    <h1>Kitchen Sink</h1>
-    <p class="sub">A server-backed extension that exercises the whole Cate extension stack.</p>
-  </header>
+  <h1>Kitchen Sink</h1>
 
-  <!-- ================= cateHost bridge ================= -->
-  <section data-proves="cateHost bridge (preload IPC into Cate)">
-    <h2>cateHost bridge</h2>
-    <div class="row"><span class="label">cate.version</span><code id="version">…</code></div>
-    <div class="row"><span class="label">panel.id</span><code id="panel">…</code></div>
-    <div class="row"><span class="label">workspace</span><code id="workspace">…</code></div>
-    <div class="row"><span class="label">theme</span><code id="theme">…</code></div>
-    <p class="note">Theme tokens above are applied to this panel's colors via <code>cate.theme.get</code>.</p>
+  <section>
+    <div class="row"><span class="label">cate.version</span><code id="version">...</code></div>
+    <div class="row"><span class="label">panel.id</span><code id="panel">...</code></div>
+    <div class="row"><span class="label">workspace</span><code id="workspace">...</code></div>
+    <div class="row"><span class="label">theme</span><code id="theme">...</code></div>
   </section>
 
-  <!-- ================= storage autosave ================= -->
-  <section data-proves="cate.storage.get/set (persisted UI state, autosave)">
-    <h2>Notes (autosaved via cate.storage)</h2>
-    <textarea id="notes" rows="4" placeholder="Type here — autosaved to cate.storage and restored on reopen…"></textarea>
-    <div class="row"><span class="label">status</span><code id="notes-status">—</code></div>
-  </section>
-
-  <!-- ================= storage full API ================= -->
-  <section data-proves="cate.storage.delete / keys / panel.get / panel.set / onChange">
-    <h2>Storage (full API)</h2>
+  <section>
+    <h2>storage</h2>
+    <textarea id="notes" rows="4" placeholder="Notes, autosaved to cate.storage"></textarea>
+    <div class="row"><span class="label">status</span><code id="notes-status"></code></div>
     <div class="row">
-      <button id="storage-keys">storage.keys()</button>
-      <button id="storage-delete-notes">delete notes key</button>
-      <button id="panel-bump">panel.set (per-panel counter)</button>
+      <button id="storage-keys">keys</button>
+      <button id="storage-delete-notes">delete notes</button>
+      <button id="panel-bump">panel counter +1</button>
     </div>
-    <div class="row"><span class="label">keys</span><code id="keys-out">—</code></div>
-    <div class="row"><span class="label">panel counter</span><code id="panel-counter">—</code></div>
-    <div class="row"><span class="label">onChange events</span><code id="change-count">0</code></div>
-    <p class="note">Spawn a second panel and edit its notes — this panel's
-      <code>storage.onChange</code> counter ticks. The panel counter uses
-      <code>cate.storage.panel.set/get</code>, isolated to THIS panel id.</p>
+    <div class="row"><span class="label">keys</span><code id="keys-out"></code></div>
+    <div class="row"><span class="label">panel counter</span><code id="panel-counter">0</code></div>
+    <div class="row"><span class="label">onChange</span><code id="change-count">0</code></div>
   </section>
 
-  <!-- ================= reverse-API actions ================= -->
-  <section data-proves="cate.editor.openFile / cate.canvas.createPanel / cate.panel.setTitle">
-    <h2>Cate actions (reverse API)</h2>
+  <section>
+    <h2>actions</h2>
     <div class="row">
-      <button id="open-file">Open package.json in Cate</button>
-      <button id="open-file-line">Open at line 2</button>
-      <button id="spawn-panel">Spawn another Kitchen Sink panel</button>
-      <button id="set-title">Set panel title</button>
-      <button id="notify">ui.notify</button>
+      <button id="open-file">open package.json</button>
+      <button id="open-file-line">open at line 2</button>
+      <button id="spawn-panel">spawn panel</button>
+      <button id="set-title">set title</button>
+      <button id="notify">notify</button>
     </div>
   </section>
 
-  <!-- ================= HTTP tunnel ================= -->
-  <section data-proves="HTTP tunnel (page → proxy → daemon-hosted server)">
-    <h2>HTTP tunnel to our own server</h2>
+  <section>
+    <h2>http</h2>
     <div class="row">
       <button id="call-info">GET /api/info</button>
       <button id="call-echo">POST /api/echo</button>
     </div>
-    <pre id="http-out">—</pre>
+    <pre id="http-out"></pre>
   </section>
 
-  <!-- ================= WebSocket tunnel ================= -->
-  <section data-proves="WebSocket tunnel (WS upgrade through the proxy)">
-    <h2>WebSocket echo</h2>
+  <section>
+    <h2>websocket</h2>
     <div class="row">
-      <input id="ws-input" type="text" value="hello over websocket" />
-      <button id="ws-send">Send over WS</button>
+      <input id="ws-input" type="text" value="hello" />
+      <button id="ws-send">send</button>
     </div>
-    <pre id="ws-out">WebSocket: connecting…</pre>
+    <pre id="ws-out">connecting</pre>
   </section>
 
-  <!-- ================= CATE_API reverse ================= -->
-  <section data-proves="CATE_API reverse channel (server → Cate)">
-    <h2>Server → Cate round-trip</h2>
-    <p class="note">Hits <code>POST /api/cate-roundtrip</code>; the SERVER calls back into Cate
-      via <code>CATE_API</code>, exercising the full main-handled surface:
-      <code>storage.set/get/keys/delete</code>, <code>ui.notify</code>, and <code>version</code>.</p>
-    <div class="row"><button id="roundtrip">Run server → Cate round-trip</button></div>
-    <pre id="roundtrip-out">—</pre>
+  <section>
+    <h2>server to cate (CATE_API)</h2>
+    <div class="row"><button id="roundtrip">run round-trip</button></div>
+    <pre id="roundtrip-out"></pre>
   </section>
 
-  <!-- ================= agent run ================= -->
-  <section data-proves="cate.agent.run (server delegates a turn to Cate's bundled agent)">
-    <h2>Run the agent</h2>
-    <p class="note">Hits <code>POST /api/agent-run</code>; the SERVER calls
-      <code>cate.agent.run</code> over <code>CATE_API</code>, so Cate's bundled
-      agent runs one turn (first use prompts for consent; the run shows in the
-      Agent panel and resolves with its final text). This is how a server-backed
-      extension delegates work to the agent.</p>
+  <section>
+    <h2>agent</h2>
     <div class="row">
       <input id="agent-input" type="text" value="Summarize this project's README in one sentence." />
-      <button id="agent-run">Run agent turn</button>
+      <button id="agent-run">run</button>
     </div>
-    <pre id="agent-out">—</pre>
+    <pre id="agent-out"></pre>
   </section>
 
   <pre id="log"></pre>
