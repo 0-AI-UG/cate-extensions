@@ -267,22 +267,62 @@ function initRoundtrip(): void {
 
 // --- agent ------------------------------------------------------------------
 
+// A real multi-turn conversation through window.cate.agent. pi owns the history;
+// we hold only the session handle (persisted under storage so it survives a
+// panel reload — open() with `resume` rehydrates pi's context).
 function initAgent(): void {
+  if (!window.cate) return
+  const out = byId('agent-out')
+  const SESSION_KEY = 'kitchensink:agent-session'
+  let sessionId: string | null = null
+  let busy = false
+  const transcript: string[] = []
+  const render = (status?: string) => {
+    out.textContent = (status ? status + '\n\n' : '') + transcript.join('\n\n')
+  }
+
+  // Ensure a live session, resuming the persisted handle if we have one.
+  async function ensureSession(): Promise<string> {
+    if (sessionId) return sessionId
+    const resume = (await cate.storage.get(SESSION_KEY)) as string | undefined
+    const res = await cate.agent.open(resume ? { resume } : undefined)
+    if ('error' in res) throw new Error(res.error)
+    sessionId = res.sessionId
+    await cate.storage.set(SESSION_KEY, sessionId)
+    return sessionId
+  }
+
   byId('agent-run').addEventListener('click', async () => {
-    const out = byId('agent-out')
-    const prompt = byId<HTMLInputElement>('agent-input').value
-    out.textContent = 'running (turn appears in the Agent panel)'
+    if (busy) return
+    const prompt = byId<HTMLInputElement>('agent-input').value.trim()
+    if (!prompt) return
+    busy = true
+    transcript.push('you: ' + prompt)
+    render('thinking…')
     try {
-      const res = await fetch(BASE + 'api/agent-run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-      })
-      const json = await res.json()
-      out.textContent = json.ok ? json.text || '(no text)' : 'failed: ' + json.error
+      const id = await ensureSession()
+      const res = await cate.agent.send(id, prompt)
+      if ('error' in res) {
+        transcript.push('error: ' + res.error)
+      } else {
+        // Show the flattened text, and the raw message so the whole thing is visible.
+        transcript.push('agent: ' + (res.text || '(no text)'))
+        log('agent message ->', res.message)
+      }
     } catch (err) {
-      out.textContent = 'failed: ' + String(err)
+      transcript.push('error: ' + String(err))
+    } finally {
+      busy = false
+      render()
     }
+  })
+
+  byId('agent-end').addEventListener('click', async () => {
+    if (sessionId) { try { await cate.agent.dispose(sessionId) } catch { /* ignore */ } }
+    sessionId = null
+    await cate.storage.delete(SESSION_KEY)
+    transcript.length = 0
+    render('(session ended)')
   })
 }
 
