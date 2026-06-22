@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeepWiki</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Control bar: shown above the config form until an upstream is configured,
+       then collapses to a thin header above the embedded DeepWiki UI. -->
+  <header id="bar">
+    <span class="brand">DeepWiki</span>
+    <span id="conn" class="pill pill-unknown">starting…</span>
+    <span class="spacer"></span>
+    <button id="refresh" title="Re-check status">refresh</button>
+    <button id="toggle-setup" title="Configure">setup</button>
+  </header>
+
+  <section id="setup">
+    <p class="muted">
+      Connect this panel to a <strong>DeepWiki-Open</strong> instance you run
+      yourself (this extension does not bundle or start DeepWiki). The simplest
+      way is <code>docker compose up</code> in a clone of
+      <code>deepwiki-open</code> — that serves the frontend on
+      <code>http://localhost:3000</code>.
+    </p>
+
+    <div class="field">
+      <label for="upstream">DeepWiki URL</label>
+      <input id="upstream" type="text" placeholder="http://localhost:3000" />
+      <button id="save-upstream">connect</button>
+    </div>
+    <div class="row"><span class="label">status</span><code id="status-line">…</code></div>
+    <button id="disconnect" class="hidden">disconnect</button>
+
+    <details id="reuse">
+      <summary>Reuse Cate's AI provider (.env to paste)</summary>
+      <p class="muted">
+        DeepWiki reads <code>OPENAI_API_KEY</code> / <code>GOOGLE_API_KEY</code> /
+        <code>OPENROUTER_API_KEY</code> (and <code>OPENAI_BASE_URL</code> for
+        OpenAI-compatible endpoints) from <strong>its own</strong> <code>.env</code>.
+        Below is that <code>.env</code> derived from Cate's configured provider so
+        you can reuse the same key — paste it into your DeepWiki instance's
+        <code>.env</code>. Keys are shown only in this local, token-gated panel;
+        nothing is written.
+      </p>
+      <div class="row"><span class="label">Cate providers</span><code id="providers">…</code></div>
+      <pre id="env-out" class="muted">(connect a Cate provider in Settings → Providers)</pre>
+      <button id="copy-env">copy .env</button>
+    </details>
+  </section>
+
+  <!-- The proxied DeepWiki UI. We load "./" (our own origin) which the server
+       reverse-proxies to the configured upstream instance. -->
+  <iframe id="wiki" title="DeepWiki" referrerpolicy="no-referrer"></iframe>
+
+  <script src="app.js"></script>
+</body>
+</html>

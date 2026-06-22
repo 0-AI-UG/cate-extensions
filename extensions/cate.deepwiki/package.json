@@ -1,0 +1,17 @@
+{
+  "name": "cate.deepwiki",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DeepWiki (DeepWiki-Open) as a server-backed Cate extension: reverse-proxies a user-run DeepWiki instance and adds Cate-native code-reference links + theming + provider reuse.",
+  "scripts": {
+    "build": "tsc -p tsconfig.server.json && tsc -p tsconfig.browser.json && node ./copy-static.mjs",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.browser.json --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
