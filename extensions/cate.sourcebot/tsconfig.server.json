@@ -1,0 +1,13 @@
+{
+  // Node server build: src/server.ts + helpers -> dist/*.js (CommonJS, run via `node dist/server.js`).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2020"],
+    "types": ["node"],
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/server.ts", "src/sourcebot.ts", "src/sourcebotClient.ts"]
+}
