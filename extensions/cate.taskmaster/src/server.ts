@@ -15,10 +15,12 @@
 //   WORKSPACE_ROOT project root on the runtime host
 //
 // Routes (all but /health require Authorization: Bearer <CATE_TOKEN>):
-//   GET /health        readiness probe (auth-exempt)
-//   GET /              panel HTML (dist/public/index.html)
-//   GET /<asset>       built JS/CSS/asset files under dist/public
-//   GET /api/board     parsed board { ok, initialized, board?, path, mtime }
+//   GET  /health         readiness probe (auth-exempt)
+//   GET  /               panel HTML (dist/public/index.html)
+//   GET  /<asset>        built JS/CSS/asset files under dist/public
+//   GET  /api/board      parsed board { ok, initialized, board?, path, mtime }
+//   POST /api/task/patch { tag, id, patch } -> update one task's fields
+//   POST /api/task       { tag, task }      -> create a task (inits the file)
 // =============================================================================
 
 import http from 'http'
@@ -26,9 +28,13 @@ import fs from 'fs'
 import path from 'path'
 import {
   parseBoardText,
+  applyTaskPatch,
+  addTask,
   TASKS_RELATIVE_PATH,
   LEGACY_TASKS_RELATIVE_PATH,
   type Board,
+  type TaskPatch,
+  type NewTaskInput,
 } from './shared/taskmaster'
 
 const PORT = Number(process.env.PORT)
@@ -105,6 +111,59 @@ function readBoard(): BoardResult {
   return { ok: true, initialized: true, board, path: file, mtime: stat.mtimeMs }
 }
 
+// --- task writes -------------------------------------------------------------
+//
+// Deterministic edits (status change, create, field edits) are done here by
+// mutating the raw JSON and writing it back atomically; the generative work
+// (generate-from-spec, expand-into-subtasks) is left to cate.agent editing the
+// file directly. We always write back to the file we read so a project on the
+// legacy path stays on it, and create the canonical path + dirs for a first task.
+
+/** Current raw file text, or '' when no tasks file exists yet. */
+function readRawText(): string {
+  const file = resolveTasksFile()
+  if (!file) return ''
+  try {
+    return fs.readFileSync(file, 'utf8')
+  } catch {
+    return ''
+  }
+}
+
+/** Atomically write the tasks file (temp + rename), creating parent dirs. */
+function writeTasksFile(text: string): { ok: true; path: string } | { ok: false; error: string } {
+  const file = resolveTasksFile()
+  if (!file) return { ok: false, error: 'no-workspace' }
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    const tmp = `${file}.cate-${process.pid}.tmp`
+    fs.writeFileSync(tmp, text, 'utf8')
+    fs.renameSync(tmp, file)
+    return { ok: true, path: file }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** Read a request body as text, capped at 1 MB. */
+function readBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let data = ''
+    let size = 0
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length
+      if (size > 1_000_000) {
+        reject(new Error('request body too large'))
+        req.destroy()
+        return
+      }
+      data += chunk.toString('utf8')
+    })
+    req.on('end', () => resolve(data))
+    req.on('error', reject)
+  })
+}
+
 // --- static assets -----------------------------------------------------------
 
 const PUBLIC_DIR = path.join(__dirname, 'public')
@@ -150,6 +209,13 @@ function sendJson(res: http.ServerResponse, status: number, obj: unknown): void 
 }
 
 const server = http.createServer((req, res) => {
+  void handle(req, res).catch((err) => {
+    if (!res.headersSent) sendJson(res, 500, { ok: false, error: String(err) })
+    else res.end()
+  })
+})
+
+async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const url = new URL(req.url || '/', 'http://127.0.0.1')
   const pathname = url.pathname
 
@@ -169,6 +235,52 @@ const server = http.createServer((req, res) => {
 
   if (pathname === '/api/board' && req.method === 'GET') {
     sendJson(res, 200, readBoard())
+    return
+  }
+
+  // Patch one task's fields (status change from drag, inline edits).
+  if (pathname === '/api/task/patch' && req.method === 'POST') {
+    let body: { tag?: string; id?: number; patch?: TaskPatch }
+    try {
+      body = JSON.parse(await readBody(req))
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'invalid JSON body' })
+      return
+    }
+    if (!body.tag || typeof body.id !== 'number' || !body.patch) {
+      sendJson(res, 400, { ok: false, error: 'tag, id and patch are required' })
+      return
+    }
+    const next = applyTaskPatch(readRawText(), body.tag, body.id, body.patch)
+    if (next === null) {
+      sendJson(res, 404, { ok: false, error: 'task not found' })
+      return
+    }
+    const result = writeTasksFile(next)
+    sendJson(res, result.ok ? 200 : 500, result)
+    return
+  }
+
+  // Create a task (also initializes the file for a first task).
+  if (pathname === '/api/task' && req.method === 'POST') {
+    let body: { tag?: string; task?: NewTaskInput }
+    try {
+      body = JSON.parse(await readBody(req))
+    } catch {
+      sendJson(res, 400, { ok: false, error: 'invalid JSON body' })
+      return
+    }
+    if (!body.tag || !body.task || !body.task.title?.trim()) {
+      sendJson(res, 400, { ok: false, error: 'tag and task.title are required' })
+      return
+    }
+    const created = addTask(readRawText(), body.tag, body.task)
+    if (created === null) {
+      sendJson(res, 400, { ok: false, error: 'could not add task' })
+      return
+    }
+    const result = writeTasksFile(created.text)
+    sendJson(res, result.ok ? 200 : 500, result.ok ? { ok: true, id: created.id } : result)
     return
   }
 
@@ -195,7 +307,7 @@ const server = http.createServer((req, res) => {
   if (ext === '.html') headers['Content-Security-Policy'] = PAGE_CSP
   res.writeHead(200, headers)
   res.end(data)
-})
+}
 
 server.listen(PORT, HOST, () => {
   console.log(`taskmaster listening on ${HOST}:${PORT} (workspace: ${WORKSPACE_ROOT || '(none)'})`)

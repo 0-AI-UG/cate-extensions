@@ -1,178 +1,119 @@
-:root {
-  /* Defaults; overridden at runtime from cate.theme.get tokens. */
-  --sb-bg: #1e1e2e;
-  --sb-fg: #cdd6f4;
-  --sb-muted: #9399b2;
-  --sb-accent: #89b4fa;
-  --sb-surface: #181825;
-  --sb-border: #313244;
-  --sb-hit: #f9e2af;
-  color-scheme: dark light;
-  font-family: system-ui, -apple-system, sans-serif;
-}
+/* Sourcebot-specific styles layered on top of the shared kit (cate-kit.css).
+ * The connect/error/ready gating and tokens come from the kit; this only styles
+ * the native search UI that we mount into the widget's content area. */
 
-* { box-sizing: border-box; }
-
-html, body {
-  height: 100%;
-  margin: 0;
-}
-
-body {
+.sb-app {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  font-size: 13px;
-  line-height: 1.5;
-  background: var(--sb-bg);
-  color: var(--sb-fg);
 }
 
-.hidden { display: none !important; }
-
-/* --- top bar --- */
-.topbar {
+/* Top bar: the search form fills the row. */
+.sb-bar {
   flex: 0 0 auto;
-  padding: 8px;
-  border-bottom: 1px solid var(--sb-border);
-  background: var(--sb-surface);
 }
-
-.search-form {
+.sb-form {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  width: 100%;
 }
-
-#query {
+.sb-query {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 6px 10px;
-  font: inherit;
-  color: var(--sb-fg);
-  background: var(--sb-bg);
-  border: 1px solid var(--sb-border);
-  border-radius: 6px;
-  outline: none;
 }
-#query:focus { border-color: var(--sb-accent); }
-
-.toggle {
+.sb-toggle {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  color: var(--sb-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--cate-muted);
+  font: var(--cate-mono);
   cursor: pointer;
   user-select: none;
 }
 
-button {
-  font: inherit;
-  color: var(--sb-fg);
-  background: var(--sb-bg);
-  border: 1px solid var(--sb-border);
-  border-radius: 6px;
-  padding: 6px 10px;
-  cursor: pointer;
-}
-button:hover { border-color: var(--sb-accent); }
-#search-btn { background: var(--sb-accent); color: var(--sb-bg); border-color: var(--sb-accent); }
-
-.status {
-  margin-top: 6px;
-  min-height: 16px;
-  color: var(--sb-muted);
-  font-size: 12px;
-}
-.status.error { color: #f38ba8; }
-
-/* --- settings --- */
-.settings {
+.sb-status {
   flex: 0 0 auto;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--sb-border);
-  background: var(--sb-surface);
+  padding: 6px 14px;
+  min-height: 16px;
+  color: var(--cate-muted);
+  font-size: 12px;
+  border-bottom: 1px solid var(--cate-border);
+  background: var(--cate-bg-elev);
 }
-.settings h2 { margin: 0 0 6px; font-size: 14px; }
-.hint { margin: 0 0 12px; color: var(--sb-muted); font-size: 12px; max-width: 60ch; }
-.field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; max-width: 520px; }
-.field span { color: var(--sb-muted); font-size: 12px; }
-.field em { font-style: normal; opacity: 0.7; }
-.field input {
-  padding: 6px 10px;
-  font: inherit;
-  color: var(--sb-fg);
-  background: var(--sb-bg);
-  border: 1px solid var(--sb-border);
-  border-radius: 6px;
-  outline: none;
+.sb-status:empty {
+  display: none;
 }
-.field input:focus { border-color: var(--sb-accent); }
-.row { display: flex; gap: 8px; }
-.cfg-result { margin-top: 10px; font-size: 12px; color: var(--sb-muted); white-space: pre-wrap; }
-.cfg-result.ok { color: #a6e3a1; }
-.cfg-result.error { color: #f38ba8; }
+.sb-status--error {
+  color: var(--cate-danger);
+}
 
-/* --- results --- */
-.results {
+/* Results list. */
+.sb-results {
   flex: 1 1 auto;
   overflow: auto;
   padding: 6px 0;
 }
+.sb-results[hidden] {
+  display: none;
+}
 
-.repo-group { margin-bottom: 4px; }
-.repo-head {
+.sb-repo {
+  margin-bottom: 4px;
+}
+.sb-repo__head {
   position: sticky;
   top: 0;
-  padding: 5px 12px;
-  background: var(--sb-surface);
-  border-bottom: 1px solid var(--sb-border);
-  color: var(--sb-muted);
+  padding: 5px 14px;
+  background: var(--cate-bg-elev);
+  border-bottom: 1px solid var(--cate-border);
+  color: var(--cate-muted);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-.hit {
+.sb-hit {
   display: block;
   width: 100%;
   text-align: left;
   border: none;
-  border-bottom: 1px solid var(--sb-border);
+  border-bottom: 1px solid var(--cate-border);
   border-radius: 0;
   background: transparent;
-  padding: 7px 12px;
+  color: var(--cate-fg);
+  padding: 7px 14px;
   cursor: pointer;
+  font: inherit;
 }
-.hit:hover { background: color-mix(in srgb, var(--sb-accent) 12%, transparent); border-color: var(--sb-border); }
-
-.hit-path {
-  color: var(--sb-accent);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+.sb-hit:hover {
+  background: color-mix(in srgb, var(--cate-accent) 12%, transparent);
 }
-.hit-line { color: var(--sb-muted); }
-.hit-snippet {
+.sb-hit__path {
+  color: var(--cate-accent);
+  font: var(--cate-mono);
+}
+.sb-hit__line {
+  color: var(--cate-muted);
+}
+.sb-hit__snippet {
   margin: 3px 0 0;
-  color: var(--sb-fg);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  color: var(--cate-fg);
+  font: var(--cate-mono);
   white-space: pre;
   overflow: hidden;
   text-overflow: ellipsis;
   opacity: 0.85;
 }
 
-.empty {
-  padding: 24px;
-  text-align: center;
-  color: var(--sb-muted);
-}
-
-/* --- browse iframe --- */
-.browse {
+/* Browse iframe (full Sourcebot UI, reverse-proxied same-origin). */
+.sb-browse {
   flex: 1 1 auto;
   width: 100%;
   border: none;
-  background: var(--sb-bg);
+  background: var(--cate-bg);
+}
+.sb-browse[hidden] {
+  display: none;
 }

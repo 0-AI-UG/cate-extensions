@@ -62,6 +62,13 @@ for (const entry of entries) {
   const id = manifest.id || entry.name;
   const version = manifest.version || "0.0.0";
 
+  // Dev/reference extensions (frontendkit, kitchensink) are built for local dev
+  // and tests but kept out of the user-facing catalog. Log it — never drop silently.
+  if (manifest.dev === true) {
+    console.log(`catalog: skip ${id}@${version} (dev: true)`);
+    continue;
+  }
+
   const artifactName = `${id}-${version}.tgz`;
   const artifactPath = join(ARTIFACT_DIR, artifactName);
   if (!existsSync(artifactPath) || !statSync(artifactPath).isFile()) {

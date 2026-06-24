@@ -1,14 +1,13 @@
 {
-  // Browser panel build: src/public/app.ts -> dist/public/app.js (classic script,
-  // no module wrapper since it has no imports/exports). DOM lib, no Node types.
+  // Browser panel typecheck: src/public/app.ts + the shared kit (src/_kit).
+  // esbuild does the actual bundling (build:panel); this config is typecheck
+  // only (--noEmit), so it just needs to resolve the kit imports.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["ES2020", "DOM"],
-    "types": [],
-    "rootDir": "src/public",
-    "outDir": "dist/public"
+    "types": []
   },
-  "include": ["src/public/**/*.ts"]
+  "include": ["src/public/**/*.ts", "src/_kit/**/*.ts"]
 }

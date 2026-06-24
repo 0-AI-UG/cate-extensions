@@ -1,14 +1,18 @@
-// DeepWiki panel (connect-only). External script (CSP-safe). All fetch uses
-// relative URLs so they resolve under /ext/<routeToken>/ and tunnel through
+// DeepWiki panel (connect-only). External script (CSP-safe). All fetch/iframe
+// URLs are relative so they resolve under /ext/<routeToken>/ and tunnel through
 // Cate's proxy.
 //
-// Responsibilities:
-//   - Theme the chrome from cate.theme.get().
-//   - Let the user configure the URL of a DeepWiki instance they run themselves,
-//     and show connection status.
-//   - Surface a ready-to-paste .env derived from Cate's configured AI provider.
-//   - Embed the proxied DeepWiki UI in an iframe and route code-reference clicks
-//     to cate.editor.openFile(path, { line }) instead of navigating.
+// The shared ServiceConnection widget owns the connect / ready gating; this
+// connects to a DeepWiki instance the USER runs (docker compose), persisted via
+// the server's ./api/upstream endpoint. Once connected it embeds the proxied
+// DeepWiki UI into the widget's content area, with:
+//   - code-reference click interception routed to cate.editor.openFile, and
+//   - a small "Copy .env" helper bar (the .env derived from Cate's provider).
+
+import '../_kit/cate-kit.css'
+import './style.css'
+import { initTheme } from '../_kit/theme'
+import { ServiceConnection } from '../_kit/service-connection'
 
 // Self-contained copy of the parser used by the server, so the panel can decide
 // locally whether a clicked link is a workspace file reference. Kept in sync
@@ -50,41 +54,6 @@ function parseCodeRef(href: unknown): { path: string; line?: number } | null {
 
 const BASE = location.pathname.replace(/[^/]*$/, '')
 
-function byId<T extends HTMLElement>(id: string): T {
-  return document.getElementById(id) as T
-}
-function set(id: string, text: string): void {
-  const el = document.getElementById(id)
-  if (el) el.textContent = text
-}
-
-// --- theming ----------------------------------------------------------------
-
-async function applyTheme(): Promise<void> {
-  if (!window.cate) return
-  try {
-    const theme = await cate.theme.get()
-    const app = theme.app || {}
-    const pick = (...keys: string[]): string | null => {
-      for (const k of keys) if (app[k]) return app[k]
-      return null
-    }
-    const root = document.documentElement.style
-    const bg = pick('editor-bg', 'app-bg', 'bg', 'background')
-    const fg = pick('editor-fg', 'app-fg', 'fg', 'foreground', 'text')
-    const accent = pick('accent', 'focus-border', 'link', 'button-bg')
-    const border = pick('border', 'panel-border', 'editor-line')
-    if (bg) root.setProperty('--dw-bg', bg)
-    if (fg) root.setProperty('--dw-fg', fg)
-    if (accent) root.setProperty('--dw-accent', accent)
-    if (border) root.setProperty('--dw-border', border)
-  } catch {
-    /* keep defaults */
-  }
-}
-
-// --- status -----------------------------------------------------------------
-
 interface Status {
   upstream: string | null
   reachable: boolean
@@ -93,93 +62,170 @@ interface Status {
   canReuseCateProvider: boolean
 }
 
-async function refreshStatus(): Promise<void> {
-  const conn = byId('conn')
-  try {
-    const res = await fetch(BASE + 'api/status')
-    const s: Status = await res.json()
-    renderStatus(s)
-  } catch (err) {
-    conn.textContent = 'error'
-    conn.className = 'pill pill-bad'
-    set('status-line', 'status check failed: ' + String(err))
-  }
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag)
+  if (className) node.className = className
+  if (text != null) node.textContent = text
+  return node
 }
 
-function renderStatus(s: Status): void {
-  const conn = byId('conn')
-  set('providers', s.cateProviders.length ? s.cateProviders.join(', ') : '(none configured)')
-  if (s.upstream) byId<HTMLInputElement>('upstream').value = s.upstream
+// --- the connection widget ---------------------------------------------------
 
-  // Connection pill + status line.
-  let label: string
-  let cls: string
-  if (!s.upstream) {
-    label = 'not configured'
-    cls = 'pill-unknown'
-    set('status-line', 'enter the URL of a DeepWiki instance you run')
-  } else if (s.reachable) {
-    label = 'connected'
-    cls = 'pill-ok'
-    set('status-line', 'connected to ' + s.upstream)
+let lastStatus: Status | null = null
+
+const conn = new ServiceConnection(document.getElementById('root')!, {
+  serviceName: 'DeepWiki',
+  description:
+    'Connect to a DeepWiki-Open instance you run yourself (this extension does not bundle or start DeepWiki). The simplest way is `docker compose up` in a clone of deepwiki-open, which serves the frontend on http://localhost:3000.',
+  connect: {
+    urlLabel: 'DeepWiki URL',
+    urlPlaceholder: 'http://localhost:3000',
+    help: 'DeepWiki reads its provider keys from its own .env. Once connected, a "Copy .env" helper derived from Cate\'s configured provider appears above the wiki.',
+    onSubmit: (v) => void submitUpstream(v.url),
+    onDisconnect: () => void disconnect(),
+  },
+  onReady: (mount) => buildWikiUI(mount),
+})
+
+async function fetchStatus(): Promise<Status> {
+  const res = await fetch(BASE + 'api/status')
+  return (await res.json()) as Status
+}
+
+/** Apply a Status to the widget. With an upstream set we go ready and embed the
+ *  iframe (even if currently unreachable, so the user sees the upstream's own
+ *  error rather than a blank panel); with none we show the connect form. */
+function applyStatus(s: Status): void {
+  lastStatus = s
+  if (s.upstream) {
+    conn.setState({ kind: 'ready' })
   } else {
-    label = 'unreachable'
-    cls = 'pill-bad'
-    set('status-line', 'configured ' + s.upstream + ' but it is not responding')
+    conn.setState({ kind: 'needs-connection' })
   }
-  conn.textContent = label
-  conn.className = 'pill ' + cls
-
-  // Show "disconnect" only when an upstream is configured.
-  byId('disconnect').classList.toggle('hidden', !s.upstream)
-
-  // Embed the wiki once an upstream is configured (even if currently unreachable,
-  // so the user sees the upstream's own error rather than a blank panel).
-  showWiki(Boolean(s.upstream))
-  if (s.canReuseCateProvider) void loadEnv()
 }
 
-async function loadEnv(): Promise<void> {
+async function recheck(): Promise<void> {
+  conn.setState({ kind: 'connecting' })
+  try {
+    applyStatus(await fetchStatus())
+  } catch (err) {
+    conn.setState({
+      kind: 'error',
+      message: 'Cannot reach the extension server.',
+      detail: String(err),
+      canRetry: true,
+    })
+  }
+}
+
+async function submitUpstream(url: string): Promise<void> {
+  conn.setState({ kind: 'connecting', message: 'Connecting…' })
+  try {
+    const res = await fetch(BASE + 'api/upstream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ upstream: url }),
+    })
+    const json = (await res.json()) as { ok?: boolean; error?: string }
+    if (!json.ok) {
+      conn.setState({ kind: 'needs-connection', baseUrl: url, message: 'Invalid URL: ' + (json.error || '') })
+      return
+    }
+    applyStatus(await fetchStatus())
+  } catch (err) {
+    conn.setState({
+      kind: 'error',
+      message: 'Failed to connect.',
+      detail: String(err),
+      canRetry: true,
+    })
+  }
+}
+
+async function disconnect(): Promise<void> {
+  conn.setState({ kind: 'connecting', message: 'Disconnecting…' })
+  try {
+    await fetch(BASE + 'api/upstream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ upstream: null }),
+    })
+  } catch {
+    /* best-effort; re-check below regardless */
+  }
+  conn.setState({ kind: 'needs-connection' })
+}
+
+// --- wiki UI (built once, into the widget's content area) --------------------
+
+let wikiFrame!: HTMLIFrameElement
+
+function buildWikiUI(mount: HTMLElement): void {
+  const wrap = el('div', 'dw-wrap')
+
+  // Helper bar: "Copy .env" (only meaningful if Cate has a reusable provider).
+  const bar = el('div', 'dw-bar')
+  const providers = lastStatus?.cateProviders ?? []
+  bar.appendChild(
+    el(
+      'span',
+      'dw-bar__label',
+      providers.length ? `Cate providers: ${providers.join(', ')}` : 'No Cate provider configured',
+    ),
+  )
+  const copyBtn = el('button', 'cate-btn dw-bar__btn', 'Copy .env') as HTMLButtonElement
+  copyBtn.type = 'button'
+  copyBtn.title = 'Copy a .env derived from Cate\'s provider keys to paste into your DeepWiki instance'
+  copyBtn.addEventListener('click', () => void copyEnv())
+  bar.appendChild(copyBtn)
+
+  wikiFrame = el('iframe', 'dw-wiki') as HTMLIFrameElement
+  wikiFrame.title = 'DeepWiki'
+  wikiFrame.referrerPolicy = 'no-referrer'
+  // Load our own origin root, which the server reverse-proxies to upstream.
+  wikiFrame.src = BASE
+
+  wrap.append(bar, wikiFrame)
+  mount.appendChild(wrap)
+
+  attachIframeGlue()
+}
+
+async function copyEnv(): Promise<void> {
+  let dotenv = ''
   try {
     const res = await fetch(BASE + 'api/env')
-    const { dotenv } = (await res.json()) as { dotenv: string }
-    set('env-out', dotenv || '(no reusable provider key found in Cate)')
+    dotenv = ((await res.json()) as { dotenv?: string }).dotenv || ''
   } catch {
-    /* leave placeholder */
+    /* fall through to the empty-clipboard guard below */
+  }
+  if (!dotenv) {
+    await cate?.ui.notify('No reusable provider key found in Cate (Settings → Providers).', 'warn')
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(dotenv)
+    await cate?.ui.notify('DeepWiki .env copied to clipboard', 'info')
+  } catch {
+    await cate?.ui.notify('Could not copy to clipboard.', 'warn')
   }
 }
 
-// --- wiki iframe + code-reference glue --------------------------------------
-
-let wikiShown = false
-
-function showWiki(reachable: boolean): void {
-  const iframe = byId<HTMLIFrameElement>('wiki')
-  const setup = byId('setup')
-  if (reachable) {
-    if (!wikiShown) {
-      // Load our own origin root, which the server reverse-proxies to upstream.
-      iframe.src = BASE
-      wikiShown = true
-    }
-    setup.classList.add('hidden')
-    iframe.classList.remove('hidden')
-  } else {
-    setup.classList.remove('hidden')
-    iframe.classList.add('hidden')
-  }
-}
+// --- code-reference glue -----------------------------------------------------
 
 // Intercept clicks inside the proxied DeepWiki UI (same-origin, so we can reach
 // its document) and route code references to Cate's editor. Re-attaches on each
 // navigation. If the document is ever cross-origin/inaccessible, we silently
 // fall back to normal in-iframe navigation.
 function attachIframeGlue(): void {
-  const iframe = byId<HTMLIFrameElement>('wiki')
-  iframe.addEventListener('load', () => {
+  wikiFrame.addEventListener('load', () => {
     let doc: Document | null = null
     try {
-      doc = iframe.contentDocument
+      doc = wikiFrame.contentDocument
     } catch {
       doc = null // cross-origin; can't instrument
     }
@@ -227,72 +273,12 @@ async function openInEditor(ref: { path: string; line?: number }): Promise<void>
   }
 }
 
-// --- wiring -----------------------------------------------------------------
+// --- boot --------------------------------------------------------------------
 
-function initControls(): void {
-  byId('refresh').addEventListener('click', () => void refreshStatus())
-
-  byId('toggle-setup').addEventListener('click', () => {
-    byId('setup').classList.toggle('hidden')
-  })
-
-  const reload = (): void => {
-    wikiShown = false
-    byId<HTMLIFrameElement>('wiki').src = 'about:blank'
-  }
-
-  byId('save-upstream').addEventListener('click', async () => {
-    const upstream = byId<HTMLInputElement>('upstream').value.trim()
-    if (!upstream) return
-    set('status-line', 'connecting…')
-    try {
-      const res = await fetch(BASE + 'api/upstream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ upstream }),
-      })
-      const json = (await res.json()) as { ok?: boolean; error?: string }
-      if (!json.ok) {
-        set('status-line', 'invalid URL: ' + (json.error || ''))
-        return
-      }
-      reload()
-      await refreshStatus()
-    } catch (err) {
-      set('status-line', 'failed: ' + String(err))
-    }
-  })
-
-  // Clear the configured upstream -> back to the config page.
-  byId('disconnect').addEventListener('click', async () => {
-    set('status-line', 'disconnecting…')
-    try {
-      await fetch(BASE + 'api/upstream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ upstream: null }),
-      })
-      byId<HTMLInputElement>('upstream').value = ''
-      reload()
-      await refreshStatus()
-    } catch (err) {
-      set('status-line', 'failed: ' + String(err))
-    }
-  })
-
-  byId('copy-env').addEventListener('click', async () => {
-    const text = byId('env-out').textContent || ''
-    try {
-      await navigator.clipboard.writeText(text)
-      await cate.ui.notify('DeepWiki .env copied to clipboard', 'info')
-    } catch {
-      /* clipboard may be blocked; user can select manually */
-    }
-  })
+async function boot(): Promise<void> {
+  await initTheme()
+  attachMessageGlue()
+  await recheck()
 }
 
-void applyTheme()
-initControls()
-attachIframeGlue()
-attachMessageGlue()
-void refreshStatus()
+void boot()

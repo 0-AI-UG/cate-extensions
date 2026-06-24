@@ -13,5 +13,5 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src/public", "src/shared"]
+  "include": ["src/public", "src/shared", "src/_kit"]
 }

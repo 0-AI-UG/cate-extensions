@@ -1,8 +1,6 @@
-// Copy the panel's static assets (HTML/CSS) alongside the compiled app.js.
-// tsc only emits JS, so the non-TS files are copied here as the final build step.
+// Copy the panel's HTML alongside the bundled app.js / app.css (esbuild emits
+// the JS+CSS bundle; the HTML shell is copied here as the final build step).
 import { cpSync, mkdirSync } from 'node:fs'
 
 mkdirSync('dist/public', { recursive: true })
-for (const file of ['index.html', 'style.css']) {
-  cpSync(`src/public/${file}`, `dist/public/${file}`)
-}
+cpSync('src/public/index.html', 'dist/public/index.html')

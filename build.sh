@@ -25,6 +25,10 @@ ARTIFACT_DIR="$DIST_DIR/artifacts"
 rm -rf "$DIST_DIR"
 mkdir -p "$ARTIFACT_DIR"
 
+# Propagate the shared UI kit into each consuming extension's src/_kit/ before
+# compiling, so builds pick up the latest kit/.
+node "$ROOT/scripts/sync-kit.mjs"
+
 shopt -s nullglob
 for dir in "$EXT_DIR"/*/; do
   id="$(basename "$dir")"

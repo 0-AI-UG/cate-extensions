@@ -1,0 +1,212 @@
+// =============================================================================
+// ServiceConnection — shared gating UI for extensions that wrap an external
+// service (mcphub provisions one; sourcebot/deepwiki connect to a user-run
+// instance). It owns one honest state machine and renders a coherent
+// connection card over a content area the consumer fills once ready:
+//
+//   idle ─▶ provisioning ─▶ ready            (run-for-me: mcphub)
+//                └─▶ error ◀─ retry
+//   needs-connection ─▶ connecting ─▶ ready  (connect-to-existing: sourcebot/deepwiki)
+//                          └─▶ error ─▶ (edit / retry)
+//
+// The consumer drives transitions by calling setState(...); the widget fires
+// callbacks for user actions (onSubmit, onDisconnect, onRetry) and calls
+// onReady(mount) exactly once when first ready so the consumer can attach its
+// iframe or native UI. Vanilla + CSP-safe (textContent only, no innerHTML).
+// =============================================================================
+
+export type ConnState =
+  | { kind: 'idle' }
+  | { kind: 'provisioning'; message?: string; log?: string }
+  | { kind: 'connecting'; message?: string }
+  | { kind: 'needs-connection'; baseUrl?: string; apiKey?: string; message?: string }
+  | { kind: 'ready' }
+  | { kind: 'error'; message: string; detail?: string; canRetry?: boolean }
+
+export interface ConnectConfig {
+  urlLabel?: string
+  urlPlaceholder?: string
+  apiKey?: boolean
+  apiKeyLabel?: string
+  help?: string
+  onSubmit: (values: { url: string; apiKey?: string }) => void | Promise<void>
+  onDisconnect?: () => void | Promise<void>
+}
+
+export interface ServiceConnectionOptions {
+  serviceName: string
+  description?: string
+  /** Present for URL-based "connect to existing" services. */
+  connect?: ConnectConfig
+  /** Present for provisioned services that can be (re)started. */
+  onRetry?: () => void | Promise<void>
+  /** Called once, the first time the widget enters `ready`. */
+  onReady?: (mount: HTMLElement) => void
+}
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag)
+  if (className) node.className = className
+  if (text != null) node.textContent = text
+  return node
+}
+
+export class ServiceConnection {
+  /** Mount point for the consumer's iframe / native UI. */
+  readonly content: HTMLElement
+
+  private readonly opts: ServiceConnectionOptions
+  private readonly overlay: HTMLElement
+  private readonly card: HTMLElement
+  private readyFired = false
+
+  constructor(root: HTMLElement, opts: ServiceConnectionOptions) {
+    this.opts = opts
+
+    const wrap = el('div', 'cate-conn')
+    this.content = el('div', 'cate-conn__content')
+    this.overlay = el('div', 'cate-conn__overlay')
+    this.card = el('div', 'cate-conn__card')
+    this.overlay.appendChild(this.card)
+    wrap.appendChild(this.content)
+    wrap.appendChild(this.overlay)
+    root.appendChild(wrap)
+
+    this.setState({ kind: 'idle' })
+  }
+
+  setState(state: ConnState): void {
+    if (state.kind === 'ready') {
+      this.overlay.hidden = true
+      if (!this.readyFired) {
+        this.readyFired = true
+        this.opts.onReady?.(this.content)
+      }
+      return
+    }
+    this.overlay.hidden = false
+    this.card.replaceChildren()
+    switch (state.kind) {
+      case 'idle':
+      case 'provisioning':
+        this.renderBusy(
+          state.kind === 'provisioning' && state.message
+            ? state.message
+            : `Starting ${this.opts.serviceName}…`,
+          state.kind === 'provisioning' ? state.log : undefined,
+        )
+        break
+      case 'connecting':
+        this.renderBusy(state.message || `Connecting to ${this.opts.serviceName}…`)
+        break
+      case 'needs-connection':
+        this.renderConnectForm(state)
+        break
+      case 'error':
+        this.renderError(state)
+        break
+    }
+  }
+
+  // --- renderers -----------------------------------------------------------
+
+  private renderHead(): void {
+    const head = el('div', 'cate-conn__head')
+    head.appendChild(el('div', 'cate-conn__title', this.opts.serviceName))
+    this.card.appendChild(head)
+  }
+
+  private renderBusy(message: string, log?: string): void {
+    this.renderHead()
+    const row = el('div', 'cate-conn__row')
+    row.appendChild(el('div', 'cate-spinner'))
+    row.appendChild(el('p', 'cate-conn__msg', message))
+    this.card.appendChild(row)
+    if (log && log.trim()) {
+      this.card.appendChild(el('pre', 'cate-pre cate-conn__log', log))
+    }
+  }
+
+  private renderError(state: Extract<ConnState, { kind: 'error' }>): void {
+    this.renderHead()
+    this.card.appendChild(el('p', 'cate-conn__msg cate-conn__msg--error', state.message))
+    if (state.detail && state.detail.trim()) {
+      this.card.appendChild(el('pre', 'cate-pre cate-conn__log', state.detail))
+    }
+    const actions = el('div', 'cate-conn__actions')
+    if (state.canRetry !== false && (this.opts.onRetry || this.opts.connect)) {
+      const retry = el('button', 'cate-btn cate-btn--primary', 'Retry')
+      retry.addEventListener('click', () => {
+        if (this.opts.onRetry) void this.opts.onRetry()
+        else this.setState({ kind: 'needs-connection' })
+      })
+      actions.appendChild(retry)
+    }
+    if (this.opts.connect) {
+      const edit = el('button', 'cate-btn', 'Edit connection')
+      edit.addEventListener('click', () => this.setState({ kind: 'needs-connection' }))
+      actions.appendChild(edit)
+    }
+    if (actions.childElementCount) this.card.appendChild(actions)
+  }
+
+  private renderConnectForm(state: Extract<ConnState, { kind: 'needs-connection' }>): void {
+    const cfg = this.opts.connect
+    this.renderHead()
+    if (this.opts.description) {
+      this.card.appendChild(el('p', 'cate-conn__desc', this.opts.description))
+    }
+    if (!cfg) {
+      // No connect config but somehow here: degrade to a busy card.
+      this.renderBusy(`Waiting for ${this.opts.serviceName}…`)
+      return
+    }
+    if (state.message) {
+      this.card.appendChild(el('p', 'cate-conn__msg', state.message))
+    }
+
+    const urlField = el('div', 'cate-field')
+    urlField.appendChild(el('label', 'cate-label', cfg.urlLabel || 'Instance URL'))
+    const urlInput = el('input', 'cate-input') as HTMLInputElement
+    urlInput.type = 'url'
+    urlInput.placeholder = cfg.urlPlaceholder || 'https://localhost:3000'
+    urlInput.value = state.baseUrl || ''
+    urlField.appendChild(urlInput)
+    this.card.appendChild(urlField)
+
+    let keyInput: HTMLInputElement | null = null
+    if (cfg.apiKey) {
+      const keyField = el('div', 'cate-field')
+      keyField.appendChild(el('label', 'cate-label', cfg.apiKeyLabel || 'API key (optional)'))
+      keyInput = el('input', 'cate-input') as HTMLInputElement
+      keyInput.type = 'password'
+      keyInput.value = state.apiKey || ''
+      keyField.appendChild(keyInput)
+      this.card.appendChild(keyField)
+    }
+
+    if (cfg.help) this.card.appendChild(el('p', 'cate-conn__desc', cfg.help))
+
+    const actions = el('div', 'cate-conn__actions')
+    const submit = el('button', 'cate-btn cate-btn--primary', 'Connect')
+    submit.addEventListener('click', () => {
+      const url = urlInput.value.trim()
+      if (!url) {
+        urlInput.focus()
+        return
+      }
+      void cfg.onSubmit({ url, apiKey: keyInput?.value.trim() || undefined })
+    })
+    actions.appendChild(submit)
+    if (cfg.onDisconnect && state.baseUrl) {
+      const disconnect = el('button', 'cate-btn', 'Disconnect')
+      disconnect.addEventListener('click', () => void cfg.onDisconnect?.())
+      actions.appendChild(disconnect)
+    }
+    this.card.appendChild(actions)
+  }
+}
