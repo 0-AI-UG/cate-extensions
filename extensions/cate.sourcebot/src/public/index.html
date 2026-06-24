@@ -4,55 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sourcebot</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="app.css" />
 </head>
 <body>
-  <header class="topbar">
-    <form id="search-form" class="search-form">
-      <input
-        id="query"
-        type="text"
-        autocomplete="off"
-        spellcheck="false"
-        placeholder="Search code…  (repo:  lang:  file:  sym:)"
-      />
-      <label class="toggle"><input id="regex" type="checkbox" /> .*</label>
-      <label class="toggle"><input id="case" type="checkbox" /> Aa</label>
-      <button id="search-btn" type="submit">Search</button>
-      <button id="browse-btn" type="button" title="Open the full Sourcebot web UI">Browse</button>
-      <button id="settings-btn" type="button" title="Sourcebot connection settings">⚙</button>
-    </form>
-    <div id="status" class="status"></div>
-  </header>
-
-  <!-- Connection settings (shown when unconfigured or via the gear). -->
-  <section id="settings" class="settings hidden">
-    <h2>Sourcebot connection</h2>
-    <p class="hint">
-      Cate does not bundle Sourcebot (its license forbids redistribution).
-      Run your own Sourcebot instance and point this at it.
-    </p>
-    <label class="field">
-      <span>Base URL</span>
-      <input id="cfg-url" type="url" placeholder="https://sourcebot.internal.example.com" />
-    </label>
-    <label class="field">
-      <span>API key <em>(optional)</em></span>
-      <input id="cfg-key" type="password" placeholder="X-Sourcebot-Api-Key" autocomplete="off" />
-    </label>
-    <div class="row">
-      <button id="cfg-save" type="button">Save &amp; test</button>
-      <button id="cfg-cancel" type="button">Close</button>
-    </div>
-    <div id="cfg-result" class="cfg-result"></div>
-  </section>
-
-  <!-- Native search results: each hit opens in a Cate editor. -->
-  <main id="results" class="results"></main>
-
-  <!-- Full Sourcebot UI, reverse-proxied same-origin under /sb/. -->
-  <iframe id="browse" class="browse hidden" title="Sourcebot"></iframe>
-
+  <!-- The shared ServiceConnection widget (kit) renders the connect / error /
+       ready states here. Once connected it mounts the native search UI (and a
+       Browse toggle that embeds the proxied Sourcebot UI). -->
+  <div id="root"></div>
   <script src="app.js"></script>
 </body>
 </html>

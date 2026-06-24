@@ -134,20 +134,23 @@ let upstream: string | null = null
 
 const STATIC: Record<string, { file: string; type: string }> = {
   '/app.js': { file: 'public/app.js', type: 'text/javascript; charset=utf-8' },
-  '/style.css': { file: 'public/style.css', type: 'text/css; charset=utf-8' },
+  '/app.css': { file: 'public/app.css', type: 'text/css; charset=utf-8' },
 }
 
 function readPublic(rel: string): Buffer {
   return fs.readFileSync(path.join(__dirname, rel))
 }
 
+// Our own script + external stylesheet only (no inline JS). The embedded wiki
+// is reverse-proxied same-origin, so 'self' covers framing it.
 const PAGE_CSP =
   "default-src 'self'; " +
-  "script-src 'self' 'unsafe-inline'; " +
+  "script-src 'self'; " +
   "style-src 'self' 'unsafe-inline'; " +
   "img-src 'self' data: blob:; " +
   "font-src 'self' data:; " +
   "connect-src 'self' ws: wss:; " +
+  "frame-src 'self'; " +
   'frame-ancestors *'
 
 function authorized(req: http.IncomingMessage): boolean {

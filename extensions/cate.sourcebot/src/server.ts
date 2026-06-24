@@ -14,7 +14,7 @@
 // Routes (all but /health require Authorization: Bearer <CATE_TOKEN>):
 //   GET  /health              readiness probe (auth-exempt)
 //   GET  /                    panel HTML
-//   GET  /app.js, /style.css  static panel assets
+//   GET  /app.js, /app.css    static panel assets
 //   GET  /api/config          { configured, baseUrl, reachable, hasKey }
 //   POST /sbapi/search        native search -> normalized { hits, totalMatches }
 //   ANY  /sb/<rest>           raw reverse-proxy to the user's Sourcebot (iframe)
@@ -108,7 +108,7 @@ async function loadConfig(): Promise<SourcebotConfig | null> {
 
 const STATIC: Record<string, { file: string; type: string }> = {
   '/app.js': { file: 'public/app.js', type: 'text/javascript; charset=utf-8' },
-  '/style.css': { file: 'public/style.css', type: 'text/css; charset=utf-8' },
+  '/app.css': { file: 'public/app.css', type: 'text/css; charset=utf-8' },
 }
 
 function readPublic(rel: string): Buffer {

@@ -275,6 +275,132 @@ export function groupByColumn(tasks: Task[]): Record<string, Task[]> {
 }
 
 // -----------------------------------------------------------------------------
+// Mutation — write tasks back to disk.
+//
+// These operate on the RAW parsed JSON (not the normalized Board) and mutate in
+// place, so unknown fields, metadata, and tag structure Task Master wrote are
+// preserved byte-for-byte except for the field we change. Pure + isomorphic +
+// tested; the server does the actual file I/O. Each returns the new file text
+// (2-space indented, trailing newline — what Task Master itself writes) or null
+// when the target can't be found, so the caller can 404 rather than clobber.
+// -----------------------------------------------------------------------------
+
+export interface TaskPatch {
+  title?: string
+  description?: string
+  status?: TaskStatus
+  priority?: string
+  details?: string
+  testStrategy?: string
+  dependencies?: number[]
+}
+
+export interface NewTaskInput {
+  title: string
+  description?: string
+  status?: TaskStatus
+  priority?: string
+  details?: string
+  testStrategy?: string
+  dependencies?: number[]
+}
+
+function serialize(parsed: unknown): string {
+  return JSON.stringify(parsed, null, 2) + '\n'
+}
+
+/** The mutable raw task array for a tag, across both on-disk shapes. The legacy
+ *  flat shape has a single implicit bucket Task Master calls "master". */
+function rawTagTasks(parsed: Record<string, unknown>, tag: string): unknown[] | null {
+  if (Array.isArray(parsed.tasks)) return parsed.tasks as unknown[]
+  const bucket = parsed[tag]
+  if (isObject(bucket) && Array.isArray(bucket.tasks)) return bucket.tasks as unknown[]
+  return null
+}
+
+/** Next free integer id within a task array (max + 1, min 1). */
+export function nextTaskId(tasks: unknown[]): number {
+  let max = 0
+  for (const t of tasks) {
+    if (isObject(t)) {
+      const n = asId(t.id)
+      if (n > max) max = n
+    }
+  }
+  return max + 1
+}
+
+/** Apply a partial update to one task. Returns new file text, or null when the
+ *  tag/task can't be located (caller should treat as not-found). */
+export function applyTaskPatch(
+  text: string,
+  tag: string,
+  id: number,
+  patch: TaskPatch,
+): string | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return null
+  }
+  if (!isObject(parsed)) return null
+  const tasks = rawTagTasks(parsed, tag)
+  if (!tasks) return null
+  const target = tasks.find((t) => isObject(t) && asId(t.id) === id)
+  if (!isObject(target)) return null
+  if (patch.title !== undefined) target.title = patch.title
+  if (patch.description !== undefined) target.description = patch.description
+  if (patch.status !== undefined) target.status = patch.status
+  if (patch.priority !== undefined) target.priority = patch.priority
+  if (patch.details !== undefined) target.details = patch.details
+  if (patch.testStrategy !== undefined) target.testStrategy = patch.testStrategy
+  if (patch.dependencies !== undefined) target.dependencies = patch.dependencies
+  return serialize(parsed)
+}
+
+/** Append a new task to a tag, creating the tag bucket (and the whole file) when
+ *  absent so "create your first task" works on a fresh project. Returns the new
+ *  file text plus the assigned id. */
+export function addTask(
+  text: string,
+  tag: string,
+  input: NewTaskInput,
+): { text: string; id: number } | null {
+  let parsed: unknown
+  try {
+    parsed = text.trim() ? JSON.parse(text) : {}
+  } catch {
+    return null
+  }
+  if (!isObject(parsed)) return null
+
+  let tasks = rawTagTasks(parsed, tag)
+  if (!tasks) {
+    // No bucket for this tag yet: create a tagged bucket (modern Task Master
+    // shape). We never invent a legacy flat file.
+    const bucket: Record<string, unknown> = { tasks: [] }
+    parsed[tag] = bucket
+    tasks = bucket.tasks as unknown[]
+  }
+
+  const id = nextTaskId(tasks)
+  const task: Record<string, unknown> = {
+    id,
+    title: input.title,
+    description: input.description ?? '',
+    status: input.status ?? 'pending',
+    dependencies: input.dependencies ?? [],
+    priority: input.priority ?? 'medium',
+  }
+  if (input.details !== undefined) task.details = input.details
+  if (input.testStrategy !== undefined) task.testStrategy = input.testStrategy
+  task.subtasks = []
+  tasks.push(task)
+  return { text: serialize(parsed), id }
+}
+
+// -----------------------------------------------------------------------------
 // File-reference extraction — lets the panel "open" a file the task mentions.
 // Task Master has no formal file field, so we heuristically pull path-like
 // tokens out of the details/testStrategy/description text. A reference is a

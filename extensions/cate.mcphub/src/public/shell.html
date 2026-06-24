@@ -4,23 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MCPHub</title>
-  <link rel="stylesheet" href="/__mcphub/style.css" />
+  <link rel="stylesheet" href="/__mcphub/app.css" />
 </head>
 <body>
-  <!-- Loader / status overlay, shown until MCPHub is ready, and on error. -->
-  <div id="overlay" class="overlay">
-    <div class="card">
-      <div class="spinner" id="spinner"></div>
-      <h1 id="title">Starting MCPHub…</h1>
-      <p id="detail" class="detail">Resolving a MCPHub install on this machine.</p>
-      <pre id="logs" class="logs" hidden></pre>
-      <button id="retry" class="retry" hidden>Retry</button>
-    </div>
-  </div>
-
-  <!-- The embedded MCPHub dashboard, reverse-proxied through this wrapper. -->
-  <iframe id="frame" class="frame" hidden title="MCPHub dashboard"></iframe>
-
+  <!-- The shared ServiceConnection widget (kit) renders the loader / error /
+       ready states here and embeds the proxied MCPHub dashboard once ready. -->
+  <div id="root"></div>
   <script src="/__mcphub/app.js"></script>
 </body>
 </html>

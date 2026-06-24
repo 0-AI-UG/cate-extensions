@@ -189,7 +189,7 @@ interface StaticAsset {
 
 const SHELL_STATIC: Record<string, StaticAsset> = {
   '/__mcphub/app.js': { file: 'public/app.js', type: 'text/javascript; charset=utf-8' },
-  '/__mcphub/style.css': { file: 'public/style.css', type: 'text/css; charset=utf-8' },
+  '/__mcphub/app.css': { file: 'public/app.css', type: 'text/css; charset=utf-8' },
 }
 
 function readPublic(rel: string): Buffer {

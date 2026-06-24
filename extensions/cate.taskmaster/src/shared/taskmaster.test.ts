@@ -8,6 +8,9 @@ import {
   tasksForTag,
   extractFileRefs,
   fileRefsForTask,
+  applyTaskPatch,
+  addTask,
+  nextTaskId,
   COLUMNS,
   type Task,
 } from './taskmaster'
@@ -179,5 +182,85 @@ describe('file reference extraction', () => {
       subtasks: [],
     }
     expect(fileRefsForTask(empty)).toEqual([])
+  })
+})
+
+describe('applyTaskPatch', () => {
+  it('changes a task status in the tagged shape, preserving other fields', () => {
+    const text = JSON.stringify(tagged)
+    const out = applyTaskPatch(text, 'master', 1, { status: 'done' })
+    expect(out).not.toBeNull()
+    const reparsed = JSON.parse(out!)
+    expect(reparsed.master.tasks[0].status).toBe('done')
+    expect(reparsed.master.tasks[0].title).toBe('Master task')
+    // Sibling tag untouched.
+    expect(reparsed['feature-x'].tasks).toHaveLength(2)
+  })
+
+  it('changes a status in the legacy flat shape and preserves metadata', () => {
+    const text = JSON.stringify(flat)
+    const out = applyTaskPatch(text, 'master', 2, { status: 'in-progress' })
+    const reparsed = JSON.parse(out!)
+    expect(reparsed.tasks[1].status).toBe('in-progress')
+    expect(reparsed.metadata.created).toBe('2025-01-01')
+  })
+
+  it('patches multiple fields at once', () => {
+    const out = applyTaskPatch(JSON.stringify(tagged), 'master', 1, {
+      title: 'Renamed',
+      priority: 'high',
+      description: 'new desc',
+    })
+    const t = JSON.parse(out!).master.tasks[0]
+    expect(t.title).toBe('Renamed')
+    expect(t.priority).toBe('high')
+    expect(t.description).toBe('new desc')
+  })
+
+  it('returns null for an unknown tag or task id', () => {
+    expect(applyTaskPatch(JSON.stringify(tagged), 'nope', 1, { status: 'done' })).toBeNull()
+    expect(applyTaskPatch(JSON.stringify(tagged), 'master', 999, { status: 'done' })).toBeNull()
+  })
+
+  it('returns null on corrupt JSON rather than clobbering', () => {
+    expect(applyTaskPatch('{not json', 'master', 1, { status: 'done' })).toBeNull()
+  })
+
+  it('ends the file with a trailing newline (matching Task Master)', () => {
+    const out = applyTaskPatch(JSON.stringify(tagged), 'master', 1, { status: 'done' })
+    expect(out!.endsWith('\n')).toBe(true)
+  })
+})
+
+describe('addTask', () => {
+  it('appends a task with the next id and defaults', () => {
+    const res = addTask(JSON.stringify(tagged), 'master', { title: 'Fresh task' })
+    expect(res).not.toBeNull()
+    expect(res!.id).toBe(2)
+    const tasks = JSON.parse(res!.text).master.tasks
+    expect(tasks).toHaveLength(2)
+    expect(tasks[1]).toMatchObject({ id: 2, title: 'Fresh task', status: 'pending', priority: 'medium' })
+    expect(tasks[1].subtasks).toEqual([])
+  })
+
+  it('creates the tag bucket and the whole file when empty (first task)', () => {
+    const res = addTask('', 'master', { title: 'First ever', status: 'pending' })
+    expect(res).not.toBeNull()
+    expect(res!.id).toBe(1)
+    const parsed = JSON.parse(res!.text)
+    expect(parsed.master.tasks[0].title).toBe('First ever')
+  })
+
+  it('appends into the legacy flat shape', () => {
+    const res = addTask(JSON.stringify(flat), 'master', { title: 'Another' })
+    expect(res!.id).toBe(4)
+    expect(JSON.parse(res!.text).tasks).toHaveLength(4)
+  })
+})
+
+describe('nextTaskId', () => {
+  it('returns max id + 1, or 1 for an empty array', () => {
+    expect(nextTaskId([])).toBe(1)
+    expect(nextTaskId([{ id: 3 }, { id: 7 }, { id: 2 }])).toBe(8)
   })
 })

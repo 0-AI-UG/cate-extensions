@@ -2,15 +2,19 @@
 // relative so they resolve under /ext/<routeToken>/ and tunnel through Cate's
 // proxy (which injects the per-server bearer). The page never holds a token.
 //
-// Two modes:
+// The shared ServiceConnection widget owns the connect/error/ready gating; this
+// connects to a Sourcebot instance the USER runs (base URL + optional API key,
+// stored via cate.storage so the server can read it back over CATE_API). Once
+// ready it mounts the native code-search UI into the widget's content area:
 //   - Native search: POST ./sbapi/search, render flat hits, and on click call
 //     cate.editor.openFile(path, { line }) to open the hit in a Cate editor.
 //   - Browse: load the full Sourcebot UI in an iframe pointed at ./sb/ (the
 //     server reverse-proxies it same-origin).
-//
-// Connection config (Sourcebot base URL + optional API key) is stored via
-// cate.storage so the server can read it back over CATE_API; the key never
-// rides in a URL the webview can read.
+
+import '../_kit/cate-kit.css'
+import './style.css'
+import { initTheme } from '../_kit/theme'
+import { ServiceConnection } from '../_kit/service-connection'
 
 // Base path for our own server, e.g. "/ext/<routeToken>/".
 const BASE = location.pathname.replace(/[^/]*$/, '')
@@ -27,47 +31,6 @@ interface SearchHit {
   language?: string
 }
 
-function byId<T extends HTMLElement>(id: string): T {
-  return document.getElementById(id) as T
-}
-
-function setStatus(text: string, isError = false): void {
-  const el = byId('status')
-  el.textContent = text
-  el.classList.toggle('error', isError)
-}
-
-// --- theming ----------------------------------------------------------------
-
-function applyTheme(theme: CateHostTheme): void {
-  const app = theme.app || {}
-  const pick = (...keys: string[]): string | null => {
-    for (const k of keys) if (app[k]) return app[k]
-    return null
-  }
-  const root = document.documentElement.style
-  const set = (cssVar: string, value: string | null): void => {
-    if (value) root.setProperty(cssVar, value)
-  }
-  set('--sb-bg', pick('editor-bg', 'app-bg', 'bg', 'background'))
-  set('--sb-fg', pick('editor-fg', 'app-fg', 'fg', 'foreground', 'text'))
-  set('--sb-muted', pick('text-muted', 'muted', 'fg-muted'))
-  set('--sb-accent', pick('accent', 'accent-fg', 'link', 'primary'))
-  set('--sb-surface', pick('surface-1', 'surface', 'panel-bg', 'sidebar-bg'))
-  set('--sb-border', pick('border', 'border-muted', 'divider'))
-}
-
-async function initTheme(): Promise<void> {
-  if (!window.cate) return
-  try {
-    applyTheme(await cate.theme.get())
-  } catch {
-    /* keep defaults */
-  }
-}
-
-// --- config -----------------------------------------------------------------
-
 interface ConfigStatus {
   configured: boolean
   baseUrl?: string
@@ -78,113 +41,179 @@ interface ConfigStatus {
   error?: string
 }
 
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag)
+  if (className) node.className = className
+  if (text != null) node.textContent = text
+  return node
+}
+
+// --- config -----------------------------------------------------------------
+
 async function fetchConfig(): Promise<ConfigStatus> {
   const res = await fetch(BASE + 'api/config')
   return (await res.json()) as ConfigStatus
 }
 
-function showSettings(show: boolean): void {
-  byId('settings').classList.toggle('hidden', !show)
-}
+// --- the connection widget ---------------------------------------------------
 
-async function openSettings(): Promise<void> {
-  if (window.cate) {
-    const url = await cate.storage.get(KEY_BASE_URL)
-    const key = await cate.storage.get(KEY_API_KEY)
-    byId<HTMLInputElement>('cfg-url').value = typeof url === 'string' ? url : ''
-    byId<HTMLInputElement>('cfg-key').value = typeof key === 'string' ? key : ''
+const conn = new ServiceConnection(document.getElementById('root')!, {
+  serviceName: 'Sourcebot',
+  description:
+    'Connect to a self-hosted Sourcebot instance you run yourself (Cate does not bundle Sourcebot — its license forbids redistribution).',
+  connect: {
+    urlLabel: 'Sourcebot URL',
+    urlPlaceholder: 'https://sourcebot.internal.example.com',
+    apiKey: true,
+    apiKeyLabel: 'API key (optional)',
+    help: 'The optional API key (X-Sourcebot-Api-Key) is stored by Cate and injected server-side; the panel never holds it.',
+    onSubmit: (v) => void submitConnection(v),
+  },
+  onRetry: () => void recheck(),
+  onReady: (mount) => buildSearchUI(mount),
+})
+
+/** Apply a ConfigStatus to the widget: ready / error / needs-connection. */
+function applyConfig(cfg: ConfigStatus, opts?: { afterSubmit?: boolean }): void {
+  if (!cfg.configured) {
+    conn.setState({
+      kind: 'needs-connection',
+      message: opts?.afterSubmit ? 'The URL was rejected: ' + (cfg.error || 'invalid URL') : undefined,
+    })
+    return
   }
-  showSettings(true)
-}
-
-function initSettings(): void {
-  byId('settings-btn').addEventListener('click', () => void openSettings())
-  byId('cfg-cancel').addEventListener('click', () => showSettings(false))
-
-  byId('cfg-save').addEventListener('click', async () => {
-    const url = byId<HTMLInputElement>('cfg-url').value.trim()
-    const key = byId<HTMLInputElement>('cfg-key').value.trim()
-    const out = byId('cfg-result')
-    out.className = 'cfg-result'
-    if (!url) {
-      out.textContent = 'A base URL is required.'
-      out.classList.add('error')
-      return
-    }
-    if (!window.cate) {
-      out.textContent = 'window.cate unavailable; cannot persist config.'
-      out.classList.add('error')
-      return
-    }
-    out.textContent = 'Saving and testing…'
-    try {
-      await cate.storage.set(KEY_BASE_URL, url)
-      await cate.storage.set(KEY_API_KEY, key)
-      const cfg = await fetchConfig()
-      if (!cfg.configured) {
-        out.textContent = 'Saved, but the URL was rejected: ' + (cfg.error || 'invalid URL')
-        out.classList.add('error')
-        return
-      }
-      if (cfg.reachable) {
-        out.textContent = `Connected to ${cfg.baseUrl}${cfg.hasKey ? ' (with API key)' : ''}.`
-        out.classList.add('ok')
-        showSettings(false)
-        await refreshStatusLine()
-      } else {
-        out.textContent =
-          `Saved ${cfg.baseUrl}, but it was not reachable: ${cfg.probeError || 'no response'}.\n` +
-          'Check the instance is running and the URL is correct.'
-        out.classList.add('error')
-      }
-    } catch (err) {
-      out.textContent = 'Failed: ' + String(err)
-      out.classList.add('error')
-    }
+  if (cfg.reachable) {
+    conn.setState({ kind: 'ready' })
+    return
+  }
+  conn.setState({
+    kind: 'error',
+    message: `${cfg.baseUrl || 'Sourcebot'} is not reachable: ${cfg.probeError || 'no response'}.`,
+    detail: 'Check the instance is running and the URL is correct.',
+    canRetry: true,
   })
 }
 
-async function refreshStatusLine(): Promise<ConfigStatus> {
+async function recheck(): Promise<void> {
+  conn.setState({ kind: 'connecting' })
   let cfg: ConfigStatus
   try {
     cfg = await fetchConfig()
   } catch (err) {
-    setStatus('Cannot reach the extension server: ' + String(err), true)
-    return { configured: false }
+    conn.setState({
+      kind: 'error',
+      message: 'Cannot reach the extension server.',
+      detail: String(err),
+      canRetry: true,
+    })
+    return
   }
-  if (!cfg.configured) {
-    setStatus('No Sourcebot configured. Click ⚙ to connect.', true)
-    void openSettings()
-  } else if (!cfg.reachable) {
-    setStatus(`${cfg.baseUrl} unreachable (${cfg.probeError || 'no response'}). Click ⚙ to fix.`, true)
-  } else {
-    setStatus(`Connected: ${cfg.baseUrl}`)
-  }
-  return cfg
+  applyConfig(cfg)
 }
 
-// --- native search ----------------------------------------------------------
+async function submitConnection(v: { url: string; apiKey?: string }): Promise<void> {
+  if (!window.cate) {
+    conn.setState({
+      kind: 'error',
+      message: 'window.cate unavailable; cannot persist config.',
+      canRetry: false,
+    })
+    return
+  }
+  conn.setState({ kind: 'connecting', message: 'Saving and testing…' })
+  try {
+    await cate.storage.set(KEY_BASE_URL, v.url)
+    await cate.storage.set(KEY_API_KEY, v.apiKey || '')
+    const cfg = await fetchConfig()
+    applyConfig(cfg, { afterSubmit: true })
+  } catch (err) {
+    conn.setState({
+      kind: 'error',
+      message: 'Failed to save the connection.',
+      detail: String(err),
+      canRetry: true,
+    })
+  }
+}
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => {
-    switch (c) {
-      case '&': return '&amp;'
-      case '<': return '&lt;'
-      case '>': return '&gt;'
-      case '"': return '&quot;'
-      default: return '&#39;'
-    }
+// --- native search UI (built once, into the widget's content area) -----------
+
+let statusEl!: HTMLElement
+let resultsEl!: HTMLElement
+let browseFrame!: HTMLIFrameElement
+let queryInput!: HTMLInputElement
+let regexInput!: HTMLInputElement
+let caseInput!: HTMLInputElement
+let browseBtn!: HTMLButtonElement
+
+function setStatus(text: string, isError = false): void {
+  statusEl.textContent = text
+  statusEl.classList.toggle('sb-status--error', isError)
+}
+
+function buildSearchUI(mount: HTMLElement): void {
+  const app = el('div', 'sb-app')
+
+  // --- top bar (search form + toggles + browse) ---
+  const form = el('form', 'sb-form') as HTMLFormElement
+  queryInput = el('input', 'cate-input sb-query') as HTMLInputElement
+  queryInput.type = 'text'
+  queryInput.autocomplete = 'off'
+  queryInput.spellcheck = false
+  queryInput.placeholder = 'Search code…  (repo:  lang:  file:  sym:)'
+
+  const regexLabel = el('label', 'sb-toggle')
+  regexInput = el('input') as HTMLInputElement
+  regexInput.type = 'checkbox'
+  regexLabel.appendChild(regexInput)
+  regexLabel.appendChild(document.createTextNode(' .*'))
+
+  const caseLabel = el('label', 'sb-toggle')
+  caseInput = el('input') as HTMLInputElement
+  caseInput.type = 'checkbox'
+  caseLabel.appendChild(caseInput)
+  caseLabel.appendChild(document.createTextNode(' Aa'))
+
+  const searchBtn = el('button', 'cate-btn cate-btn--primary', 'Search') as HTMLButtonElement
+  searchBtn.type = 'submit'
+
+  browseBtn = el('button', 'cate-btn', 'Browse') as HTMLButtonElement
+  browseBtn.type = 'button'
+  browseBtn.title = 'Open the full Sourcebot web UI'
+
+  form.append(queryInput, regexLabel, caseLabel, searchBtn, browseBtn)
+
+  const bar = el('div', 'cate-topbar sb-bar')
+  bar.appendChild(form)
+
+  statusEl = el('div', 'sb-status')
+
+  resultsEl = el('main', 'sb-results')
+
+  browseFrame = el('iframe', 'sb-browse') as HTMLIFrameElement
+  browseFrame.title = 'Sourcebot'
+  browseFrame.hidden = true
+
+  app.append(bar, statusEl, resultsEl, browseFrame)
+  mount.appendChild(app)
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault()
+    void runSearch()
   })
+  browseBtn.addEventListener('click', () => toggleBrowse())
+
+  queryInput.focus()
 }
 
 function renderResults(hits: SearchHit[], totalMatches: number | null): void {
-  const root = byId('results')
-  root.innerHTML = ''
+  resultsEl.replaceChildren()
   if (hits.length === 0) {
-    const div = document.createElement('div')
-    div.className = 'empty'
-    div.textContent = 'No matches.'
-    root.appendChild(div)
+    resultsEl.appendChild(el('div', 'cate-empty', 'No matches.'))
     return
   }
 
@@ -197,30 +226,25 @@ function renderResults(hits: SearchHit[], totalMatches: number | null): void {
   }
 
   for (const [repo, list] of groups) {
-    const group = document.createElement('div')
-    group.className = 'repo-group'
-    const head = document.createElement('div')
-    head.className = 'repo-head'
-    head.textContent = repo || '(unknown repository)'
-    group.appendChild(head)
-
+    const group = el('div', 'sb-repo')
+    group.appendChild(el('div', 'sb-repo__head', repo || '(unknown repository)'))
     for (const hit of list) {
-      const btn = document.createElement('button')
+      const btn = el('button', 'sb-hit') as HTMLButtonElement
       btn.type = 'button'
-      btn.className = 'hit'
-      btn.innerHTML =
-        `<span class="hit-path">${escapeHtml(hit.path)}</span>` +
-        `<span class="hit-line"> : ${hit.line}</span>` +
-        (hit.snippet ? `<pre class="hit-snippet">${escapeHtml(hit.snippet)}</pre>` : '')
+      btn.appendChild(el('span', 'sb-hit__path', hit.path))
+      btn.appendChild(el('span', 'sb-hit__line', ` : ${hit.line}`))
+      if (hit.snippet) btn.appendChild(el('pre', 'sb-hit__snippet', hit.snippet))
       btn.addEventListener('click', () => void openHit(hit))
       group.appendChild(btn)
     }
-    root.appendChild(group)
+    resultsEl.appendChild(group)
   }
 
-  const count =
-    totalMatches != null ? `${hits.length} shown · ${totalMatches} total matches` : `${hits.length} results`
-  setStatus(count)
+  setStatus(
+    totalMatches != null
+      ? `${hits.length} shown · ${totalMatches} total matches`
+      : `${hits.length} results`,
+  )
 }
 
 /** Open a hit in a Cate editor. Sourcebot reports repo-relative paths; we hand
@@ -247,11 +271,12 @@ async function openHit(hit: SearchHit): Promise<void> {
 }
 
 async function runSearch(): Promise<void> {
-  const query = byId<HTMLInputElement>('query').value.trim()
+  const query = queryInput.value.trim()
   if (!query) return
   // Leave browse mode if active.
-  byId('browse').classList.add('hidden')
-  byId('results').classList.remove('hidden')
+  browseFrame.hidden = true
+  resultsEl.hidden = false
+  browseBtn.textContent = 'Browse'
 
   setStatus('Searching…')
   try {
@@ -261,15 +286,15 @@ async function runSearch(): Promise<void> {
       body: JSON.stringify({
         query,
         matches: 50,
-        isRegexEnabled: byId<HTMLInputElement>('regex').checked,
-        isCaseSensitivityEnabled: byId<HTMLInputElement>('case').checked,
+        isRegexEnabled: regexInput.checked,
+        isCaseSensitivityEnabled: caseInput.checked,
       }),
     })
     const json = await res.json()
     if (json.error) {
       if (json.error === 'not-configured') {
-        setStatus('No Sourcebot configured. Click ⚙ to connect.', true)
-        void openSettings()
+        // Config was cleared underneath us; drop back to the connect form.
+        conn.setState({ kind: 'needs-connection', message: 'No Sourcebot configured.' })
         return
       }
       setStatus(`Search failed: ${json.error}${json.detail ? ' — ' + json.detail : ''}`, true)
@@ -281,43 +306,25 @@ async function runSearch(): Promise<void> {
   }
 }
 
-function initSearch(): void {
-  byId<HTMLFormElement>('search-form').addEventListener('submit', (e) => {
-    e.preventDefault()
-    void runSearch()
-  })
+function toggleBrowse(): void {
+  if (browseFrame.hidden) {
+    // Point the iframe at our same-origin reverse-proxy of Sourcebot's UI.
+    if (!browseFrame.src) browseFrame.src = BASE + 'sb/'
+    browseFrame.hidden = false
+    resultsEl.hidden = true
+    browseBtn.textContent = 'Search'
+  } else {
+    browseFrame.hidden = true
+    resultsEl.hidden = false
+    browseBtn.textContent = 'Browse'
+  }
 }
 
-// --- browse mode (full Sourcebot UI in an iframe) ---------------------------
+// --- boot --------------------------------------------------------------------
 
-function initBrowse(): void {
-  byId('browse-btn').addEventListener('click', async () => {
-    const cfg = await refreshStatusLine()
-    if (!cfg.configured) return
-    const frame = byId<HTMLIFrameElement>('browse')
-    if (frame.classList.contains('hidden')) {
-      // Point the iframe at our same-origin reverse-proxy of Sourcebot's UI.
-      if (!frame.src) frame.src = BASE + 'sb/'
-      frame.classList.remove('hidden')
-      byId('results').classList.add('hidden')
-      byId('browse-btn').textContent = 'Search'
-    } else {
-      frame.classList.add('hidden')
-      byId('results').classList.remove('hidden')
-      byId('browse-btn').textContent = 'Browse'
-    }
-  })
-}
-
-// --- boot -------------------------------------------------------------------
-
-async function main(): Promise<void> {
+async function boot(): Promise<void> {
   await initTheme()
-  initSettings()
-  initSearch()
-  initBrowse()
-  await refreshStatusLine()
-  byId<HTMLInputElement>('query').focus()
+  await recheck()
 }
 
-void main()
+void boot()

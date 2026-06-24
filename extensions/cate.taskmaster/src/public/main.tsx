@@ -1,17 +1,21 @@
 // =============================================================================
-// Task Master kanban board — Cate extension panel.
+// Task Master board — Cate extension panel.
 //
-// Renders the project's Task Master tasks as a kanban board (Pending / In
-// Progress / Done), with a task detail drawer (description, dependencies,
-// subtasks, file references). Cate-native glue:
-//   - cate.theme.get()        : match Cate's light/dark theme.
-//   - cate.editor.openFile()  : click a file reference in a task to open it.
-//   - cate.agent.run()        : hand a task to Cate's bundled agent.
-//   - cate.storage.panel      : persist UI state (selected tag) per panel.
-//   - cate.ui.notify()        : surface agent results / errors.
+// A native, interactive kanban board over a project's Task Master tasks. Not a
+// viewer: you drag cards between columns to change status, create and edit tasks
+// inline, and generate tasks from a spec via Cate's agent — all written back to
+// `.taskmaster/tasks/tasks.json` in a format the Task Master CLI still reads.
 //
-// The board data itself comes from our extension server's /api/board (the
-// cateHost API has no file read), polled for live refresh.
+// Cate-native glue:
+//   - kit theme (initTheme)     : match Cate's light/dark theme via --cate-* tokens.
+//   - cate.editor.openFile()    : click a file reference in a task to open it.
+//   - cate.agent.run()          : generate tasks from a spec / work on a task.
+//   - cate.storage.panel        : persist UI state (selected tag) per panel.
+//   - cate.ui.notify()          : surface results / errors.
+//
+// Deterministic edits go through our server's write API (board-api); generative
+// work is handed to the agent, which edits the tasks file directly. Either way
+// the board polls /api/board for the on-disk truth.
 // =============================================================================
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -25,25 +29,44 @@ import {
   type Task,
   type TaskStatus,
 } from '../shared/taskmaster'
-import { fetchBoard } from './board-api'
+import { fetchBoard, patchTask, createTask } from './board-api'
+import '../_kit/cate-kit.css'
 import './styles.css'
+import { initTheme } from '../_kit/theme'
 
-const cate = (globalThis as { cate?: CateHost }).cate
 const SELECTED_TAG_KEY = 'selectedTag'
 const POLL_MS = 4000
 
-type ThemeType = 'dark' | 'light'
+// Column -> the canonical status to assign when a card is dropped into it.
+const COLUMN_DROP_STATUS: Record<string, TaskStatus> = {
+  pending: 'pending',
+  'in-progress': 'in-progress',
+  done: 'done',
+}
+
+const STATUS_LABEL: Record<TaskStatus, string> = {
+  pending: 'Pending',
+  'in-progress': 'In Progress',
+  done: 'Done',
+  review: 'Review',
+  deferred: 'Deferred',
+  cancelled: 'Cancelled',
+  blocked: 'Blocked',
+}
+
+const STATUS_OPTIONS: TaskStatus[] = [
+  'pending',
+  'in-progress',
+  'review',
+  'blocked',
+  'done',
+  'deferred',
+  'cancelled',
+]
+
+const PRIORITY_OPTIONS = ['high', 'medium', 'low']
 
 // --- host helpers ------------------------------------------------------------
-
-async function readThemeType(): Promise<ThemeType> {
-  try {
-    const theme = await cate?.theme.get()
-    return theme?.type === 'light' ? 'light' : 'dark'
-  } catch {
-    return 'dark'
-  }
-}
 
 async function readSelectedTag(): Promise<string | undefined> {
   try {
@@ -70,20 +93,20 @@ function notify(message: string, level: 'info' | 'warn' | 'error' = 'info'): voi
   }
 }
 
-// --- presentation ------------------------------------------------------------
-
-const STATUS_LABEL: Record<TaskStatus, string> = {
-  pending: 'Pending',
-  'in-progress': 'In Progress',
-  done: 'Done',
-  review: 'Review',
-  deferred: 'Deferred',
-  cancelled: 'Cancelled',
-  blocked: 'Blocked',
+/** Return a new Board with one task's status changed (optimistic update). */
+function withStatus(board: Board, tag: string, id: number, status: TaskStatus): Board {
+  return {
+    ...board,
+    tags: board.tags.map((t) =>
+      t.tag !== tag ? t : { ...t, tasks: t.tasks.map((task) => (task.id === id ? { ...task, status } : task)) },
+    ),
+  }
 }
 
+// --- presentation ------------------------------------------------------------
+
 function StatusDot({ status }: { status: TaskStatus }) {
-  return <span className={`tm-dot tm-dot--${status}`} title={STATUS_LABEL[status]} />
+  return <span className={`cate-dot tm-dot--${status}`} title={STATUS_LABEL[status]} />
 }
 
 function subtaskProgress(task: Task): { done: number; total: number } {
@@ -92,10 +115,38 @@ function subtaskProgress(task: Task): { done: number; total: number } {
   return { done, total }
 }
 
-function TaskCard({ task, onClick }: { task: Task; onClick: () => void }) {
+function TaskCard({
+  task,
+  onClick,
+  onDragStart,
+  onDragEnd,
+}: {
+  task: Task
+  onClick: () => void
+  onDragStart: () => void
+  onDragEnd: () => void
+}) {
   const { done, total } = subtaskProgress(task)
   return (
-    <button className="tm-card" onClick={onClick} type="button">
+    <div
+      className="tm-card"
+      role="button"
+      tabIndex={0}
+      draggable
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', String(task.id))
+        e.dataTransfer.effectAllowed = 'move'
+        onDragStart()
+      }}
+      onDragEnd={onDragEnd}
+    >
       <div className="tm-card__head">
         <StatusDot status={task.status} />
         <span className="tm-card__id">#{task.id}</span>
@@ -104,21 +155,29 @@ function TaskCard({ task, onClick }: { task: Task; onClick: () => void }) {
       <div className="tm-card__title">{task.title}</div>
       <div className="tm-card__meta">
         {total > 0 && (
-          <span className="tm-chip" title="subtasks done / total">
+          <span className="cate-chip" title="subtasks done / total">
             {done}/{total} subtasks
           </span>
         )}
         {task.dependencies.length > 0 && (
-          <span className="tm-chip" title="depends on">
+          <span className="cate-chip" title="depends on">
             deps: {task.dependencies.map((d) => `#${d}`).join(', ')}
           </span>
         )}
       </div>
-    </button>
+    </div>
   )
 }
 
-function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
+function TaskDetail({
+  task,
+  onClose,
+  onEdit,
+}: {
+  task: Task
+  onClose: () => void
+  onEdit: () => void
+}) {
   const [agentBusy, setAgentBusy] = useState(false)
   const refs = useMemo(() => fileRefsForTask(task), [task])
 
@@ -139,11 +198,8 @@ function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
         : '')
     try {
       const result = await cate.agent.run(prompt)
-      if (result && 'error' in result) {
-        notify(`Agent: ${result.error}`, 'error')
-      } else {
-        notify('Agent finished working on this task', 'info')
-      }
+      if (result && 'error' in result) notify(`Agent: ${result.error}`, 'error')
+      else notify('Agent finished working on this task', 'info')
     } catch (err) {
       notify(`Agent failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     } finally {
@@ -152,21 +208,23 @@ function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
   }, [task, agentBusy])
 
   return (
-    <div className="tm-drawer" role="dialog" aria-label={`Task ${task.id}`}>
-      <div className="tm-drawer__head">
+    <div className="cate-drawer" role="dialog" aria-label={`Task ${task.id}`}>
+      <div className="cate-drawer__head">
         <div className="tm-drawer__title">
           <StatusDot status={task.status} />
           <span className="tm-card__id">#{task.id}</span>
           <span>{task.title}</span>
         </div>
-        <button className="tm-iconbtn" onClick={onClose} type="button" aria-label="Close">
+        <button className="cate-iconbtn" onClick={onClose} type="button" aria-label="Close">
           ×
         </button>
       </div>
 
-      <div className="tm-drawer__body">
-        <span className={`tm-statuspill tm-dot--${task.status}`}>{STATUS_LABEL[task.status]}</span>
-        {task.priority && <span className="tm-chip">priority: {task.priority}</span>}
+      <div className="cate-drawer__body tm-detail">
+        <div className="tm-detail__tags">
+          <span className={`cate-pill tm-statuspill tm-dot--${task.status}`}>{STATUS_LABEL[task.status]}</span>
+          {task.priority && <span className="cate-chip">priority: {task.priority}</span>}
+        </div>
 
         {task.description && (
           <section>
@@ -185,14 +243,14 @@ function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
         {task.details && (
           <section>
             <h4>Details</h4>
-            <pre className="tm-pre">{task.details}</pre>
+            <pre className="cate-pre">{task.details}</pre>
           </section>
         )}
 
         {task.testStrategy && (
           <section>
             <h4>Test Strategy</h4>
-            <pre className="tm-pre">{task.testStrategy}</pre>
+            <pre className="cate-pre">{task.testStrategy}</pre>
           </section>
         )}
 
@@ -203,7 +261,9 @@ function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
               {task.subtasks.map((s) => (
                 <li key={s.id}>
                   <StatusDot status={s.status} />
-                  <span className="tm-sub__id">{task.id}.{s.id}</span>
+                  <span className="tm-sub__id">
+                    {task.id}.{s.id}
+                  </span>
                   <span>{s.title}</span>
                 </li>
               ))}
@@ -228,9 +288,12 @@ function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
         )}
       </div>
 
-      <div className="tm-drawer__foot">
+      <div className="cate-drawer__foot">
+        <button className="cate-btn" onClick={onEdit} type="button">
+          Edit
+        </button>
         {cate?.agent && (
-          <button className="tm-btn tm-btn--primary" onClick={sendToAgent} disabled={agentBusy} type="button">
+          <button className="cate-btn cate-btn--primary" onClick={sendToAgent} disabled={agentBusy} type="button">
             {agentBusy ? 'Agent running…' : 'Send to agent'}
           </button>
         )}
@@ -239,20 +302,258 @@ function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
   )
 }
 
-// --- empty / loading states --------------------------------------------------
+interface EditorValues {
+  title: string
+  description: string
+  status: TaskStatus
+  priority: string
+  details: string
+  testStrategy: string
+}
 
-function EmptyState({ path }: { path: string | null }) {
+function emptyEditor(): EditorValues {
+  return { title: '', description: '', status: 'pending', priority: 'medium', details: '', testStrategy: '' }
+}
+
+function editorFromTask(task: Task): EditorValues {
+  return {
+    title: task.title,
+    description: task.description,
+    status: task.status,
+    priority: task.priority || 'medium',
+    details: task.details || '',
+    testStrategy: task.testStrategy || '',
+  }
+}
+
+function TaskEditor({
+  mode,
+  initial,
+  onCancel,
+  onSave,
+}: {
+  mode: 'create' | 'edit'
+  initial: EditorValues
+  onCancel: () => void
+  onSave: (values: EditorValues) => Promise<void>
+}) {
+  const [values, setValues] = useState<EditorValues>(initial)
+  const [busy, setBusy] = useState(false)
+  const set = <K extends keyof EditorValues>(key: K, v: EditorValues[K]) =>
+    setValues((prev) => ({ ...prev, [key]: v }))
+
+  const save = async () => {
+    if (!values.title.trim() || busy) return
+    setBusy(true)
+    try {
+      await onSave(values)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <div className="tm-empty">
-      <h3>No Task Master tasks here yet</h3>
-      <p>
-        This project doesn’t have a Task Master task file. Initialize Task Master in the project root and
-        generate tasks, e.g.:
-      </p>
-      <pre className="tm-pre">{`task-master init\ntask-master parse-prd .taskmaster/docs/prd.txt`}</pre>
+    <div className="cate-drawer" role="dialog" aria-label={mode === 'create' ? 'New task' : 'Edit task'}>
+      <div className="cate-drawer__head">
+        <div className="tm-drawer__title">{mode === 'create' ? 'New task' : 'Edit task'}</div>
+        <button className="cate-iconbtn" onClick={onCancel} type="button" aria-label="Close">
+          ×
+        </button>
+      </div>
+      <div className="cate-drawer__body">
+        <div className="cate-field">
+          <label className="cate-label">Title</label>
+          <input
+            className="cate-input"
+            value={values.title}
+            autoFocus
+            onChange={(e) => set('title', e.target.value)}
+            placeholder="What needs doing?"
+          />
+        </div>
+        <div className="cate-field">
+          <label className="cate-label">Description</label>
+          <textarea
+            className="cate-input tm-textarea"
+            value={values.description}
+            onChange={(e) => set('description', e.target.value)}
+            rows={3}
+          />
+        </div>
+        <div className="tm-editor__row">
+          <div className="cate-field">
+            <label className="cate-label">Status</label>
+            <select
+              className="cate-select"
+              value={values.status}
+              onChange={(e) => set('status', e.target.value as TaskStatus)}
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="cate-field">
+            <label className="cate-label">Priority</label>
+            <select
+              className="cate-select"
+              value={values.priority}
+              onChange={(e) => set('priority', e.target.value)}
+            >
+              {PRIORITY_OPTIONS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="cate-field">
+          <label className="cate-label">Details</label>
+          <textarea
+            className="cate-input tm-textarea"
+            value={values.details}
+            onChange={(e) => set('details', e.target.value)}
+            rows={4}
+          />
+        </div>
+        <div className="cate-field">
+          <label className="cate-label">Test strategy</label>
+          <textarea
+            className="cate-input tm-textarea"
+            value={values.testStrategy}
+            onChange={(e) => set('testStrategy', e.target.value)}
+            rows={2}
+          />
+        </div>
+      </div>
+      <div className="cate-drawer__foot">
+        <button className="cate-btn" onClick={onCancel} type="button">
+          Cancel
+        </button>
+        <button
+          className="cate-btn cate-btn--primary"
+          onClick={() => void save()}
+          disabled={busy || !values.title.trim()}
+          type="button"
+        >
+          {busy ? 'Saving…' : mode === 'create' ? 'Create task' : 'Save changes'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function GenerateDrawer({
+  tag,
+  onClose,
+  onDone,
+}: {
+  tag: string
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [spec, setSpec] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const generate = async () => {
+    if (!spec.trim() || busy || !cate?.agent) return
+    setBusy(true)
+    const prompt =
+      `You are working in a project that uses Task Master. The tasks file is ` +
+      `\`.taskmaster/tasks/tasks.json\`. Read it if it exists.\n\n` +
+      `Break the request below into well-scoped tasks and WRITE them into that ` +
+      `file using Task Master's tagged JSON format:\n` +
+      `{ "${tag}": { "tasks": [ { "id": <int>, "title", "description", ` +
+      `"status": "pending", "dependencies": [<int>], "priority": "high|medium|low", ` +
+      `"details", "testStrategy", "subtasks": [] } ] } }\n` +
+      `Use the tag "${tag}". Preserve existing tasks and append new ones with fresh ` +
+      `sequential ids. Status must be one of pending|in-progress|done|review|deferred|cancelled.\n\n` +
+      `Request:\n${spec.trim()}`
+    try {
+      const result = await cate.agent.run(prompt)
+      if (result && 'error' in result) {
+        notify(`Agent: ${result.error}`, 'error')
+      } else {
+        notify('Tasks generated', 'info')
+        onDone()
+      }
+    } catch (err) {
+      notify(`Agent failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="cate-drawer" role="dialog" aria-label="Generate tasks">
+      <div className="cate-drawer__head">
+        <div className="tm-drawer__title">Generate tasks</div>
+        <button className="cate-iconbtn" onClick={onClose} type="button" aria-label="Close">
+          ×
+        </button>
+      </div>
+      <div className="cate-drawer__body">
+        <p className="tm-muted">
+          Describe what you want to build, or point at a PRD/spec file in the project. Cate's agent will
+          break it into tasks and write them to <code>.taskmaster/tasks/tasks.json</code>.
+        </p>
+        <textarea
+          className="cate-input tm-textarea"
+          value={spec}
+          autoFocus
+          rows={10}
+          placeholder={'e.g. Build a REST API for a todo app with auth, CRUD, and tests.\nOr: Generate tasks from .taskmaster/docs/prd.txt'}
+          onChange={(e) => setSpec(e.target.value)}
+        />
+      </div>
+      <div className="cate-drawer__foot">
+        <button className="cate-btn" onClick={onClose} type="button">
+          Cancel
+        </button>
+        <button
+          className="cate-btn cate-btn--primary"
+          onClick={() => void generate()}
+          disabled={busy || !spec.trim()}
+          type="button"
+        >
+          {busy ? 'Generating…' : 'Generate'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function EmptyState({
+  path,
+  canAgent,
+  onCreate,
+  onGenerate,
+}: {
+  path: string | null
+  canAgent: boolean
+  onCreate: () => void
+  onGenerate: () => void
+}) {
+  return (
+    <div className="cate-empty">
+      <h3>No tasks yet</h3>
+      <p>Create your first task, or let Cate's agent generate a plan from a spec.</p>
+      <div className="cate-conn__actions">
+        <button className="cate-btn cate-btn--primary" onClick={onCreate} type="button">
+          Create your first task
+        </button>
+        {canAgent && (
+          <button className="cate-btn" onClick={onGenerate} type="button">
+            Generate from a spec…
+          </button>
+        )}
+      </div>
       {path && (
         <p className="tm-muted">
-          Looking for: <code>{path}</code>
+          Stored at <code>{path}</code> — compatible with the Task Master CLI.
         </p>
       )}
     </div>
@@ -261,35 +562,37 @@ function EmptyState({ path }: { path: string | null }) {
 
 // --- root --------------------------------------------------------------------
 
+type Drawer = { kind: 'detail'; id: number } | { kind: 'edit'; id: number } | { kind: 'create' } | { kind: 'generate' } | null
+
 function App() {
-  const [theme, setTheme] = useState<ThemeType>('dark')
   const [board, setBoard] = useState<Board | null>(null)
   const [tag, setTag] = useState<string | undefined>(undefined)
   const [path, setPath] = useState<string | null>(null)
   const [initialized, setInitialized] = useState<boolean | null>(null)
   const [error, setError] = useState<string | undefined>(undefined)
-  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [drawer, setDrawer] = useState<Drawer>(null)
+  const [draggingId, setDraggingId] = useState<number | null>(null)
+  const [dragOver, setDragOver] = useState<string | null>(null)
   const lastMtime = useRef<number | null>(null)
+  const writing = useRef(false)
 
-  // Boot: theme + persisted tag selection.
+  // Boot: theme + persisted tag.
   useEffect(() => {
     let alive = true
     void (async () => {
-      const [t, savedTag] = await Promise.all([readThemeType(), readSelectedTag()])
-      if (!alive) return
-      setTheme(t)
-      if (savedTag) setTag(savedTag)
+      const [, savedTag] = await Promise.all([initTheme(), readSelectedTag()])
+      if (alive && savedTag) setTag(savedTag)
     })()
     return () => {
       alive = false
     }
   }, [])
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
+    if (writing.current && !force) return
     try {
       const res = await fetchBoard()
-      // Skip a redundant re-render when nothing on disk changed.
-      if (res.mtime !== null && res.mtime === lastMtime.current && board) return
+      if (!force && res.mtime !== null && res.mtime === lastMtime.current && board) return
       lastMtime.current = res.mtime
       setInitialized(res.initialized)
       setPath(res.path)
@@ -301,82 +604,245 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Initial load + polling for live refresh.
   useEffect(() => {
     void load()
     const id = setInterval(() => void load(), POLL_MS)
     return () => clearInterval(id)
   }, [load])
 
-  const activeTag = tag ?? board?.defaultTag
+  const activeTag = tag ?? board?.defaultTag ?? 'master'
   const tasks = useMemo(() => (board ? tasksForTag(board, activeTag) : []), [board, activeTag])
   const grouped = useMemo(() => groupByColumn(tasks), [tasks])
-  const selected = useMemo(
-    () => (selectedId !== null ? tasks.find((t) => t.id === selectedId) ?? null : null),
-    [tasks, selectedId],
-  )
+  const selectedTask = useMemo(() => {
+    const id = drawer && (drawer.kind === 'detail' || drawer.kind === 'edit') ? drawer.id : null
+    return id !== null ? tasks.find((t) => t.id === id) ?? null : null
+  }, [tasks, drawer])
 
   const onSelectTag = useCallback((next: string) => {
     setTag(next)
     persistSelectedTag(next)
-    setSelectedId(null)
+    setDrawer(null)
   }, [])
 
+  // Drop a card into a column -> change its status.
+  const onDropTask = useCallback(
+    async (taskId: number, columnId: string) => {
+      setDragOver(null)
+      setDraggingId(null)
+      const status = COLUMN_DROP_STATUS[columnId]
+      if (!board || !status) return
+      const current = tasks.find((t) => t.id === taskId)
+      if (!current || current.status === status) return
+      setBoard(withStatus(board, activeTag, taskId, status)) // optimistic
+      writing.current = true
+      const res = await patchTask(activeTag, taskId, { status })
+      writing.current = false
+      if (!res.ok) {
+        notify(`Couldn't move task: ${res.error}`, 'error')
+        void load(true) // revert to disk truth
+      } else {
+        void load(true)
+      }
+    },
+    [board, tasks, activeTag, load],
+  )
+
+  const saveEditor = useCallback(
+    async (mode: 'create' | 'edit', values: EditorValues, id?: number) => {
+      writing.current = true
+      const patch = {
+        title: values.title.trim(),
+        description: values.description,
+        status: values.status,
+        priority: values.priority,
+        details: values.details,
+        testStrategy: values.testStrategy,
+      }
+      const res =
+        mode === 'create'
+          ? await createTask(activeTag, patch)
+          : await patchTask(activeTag, id!, patch)
+      writing.current = false
+      if (!res.ok) {
+        notify(`Save failed: ${res.error}`, 'error')
+        return
+      }
+      setDrawer(null)
+      await load(true)
+    },
+    [activeTag, load],
+  )
+
+  const canAgent = Boolean(cate?.agent)
+
   if (initialized === null && !board) {
-    return <div className={`tm-app tm-${theme} tm-center`}>Loading…</div>
+    return <div className="cate-app tm-center">Loading…</div>
   }
   if (initialized === false || (board === null && !error)) {
     return (
-      <div className={`tm-app tm-${theme}`}>
-        <EmptyState path={path} />
+      <div className="cate-app">
+        <Topbar
+          board={board}
+          activeTag={activeTag}
+          count={0}
+          canAgent={canAgent}
+          onSelectTag={onSelectTag}
+          onNew={() => setDrawer({ kind: 'create' })}
+          onGenerate={() => setDrawer({ kind: 'generate' })}
+        />
+        <EmptyState
+          path={path}
+          canAgent={canAgent}
+          onCreate={() => setDrawer({ kind: 'create' })}
+          onGenerate={() => setDrawer({ kind: 'generate' })}
+        />
+        {drawer?.kind === 'create' && (
+          <TaskEditor
+            mode="create"
+            initial={emptyEditor()}
+            onCancel={() => setDrawer(null)}
+            onSave={(v) => saveEditor('create', v)}
+          />
+        )}
+        {drawer?.kind === 'generate' && (
+          <GenerateDrawer tag={activeTag} onClose={() => setDrawer(null)} onDone={() => void load(true)} />
+        )}
       </div>
     )
   }
 
   return (
-    <div className={`tm-app tm-${theme}`}>
-      <header className="tm-topbar">
-        <span className="tm-topbar__title">Task Master</span>
-        {board && board.tags.length > 1 && (
-          <select
-            className="tm-tagselect"
-            value={activeTag}
-            onChange={(e) => onSelectTag(e.target.value)}
-            aria-label="Tag context"
-          >
-            {board.tags.map((t) => (
-              <option key={t.tag} value={t.tag}>
-                {t.tag} ({t.tasks.length})
-              </option>
-            ))}
-          </select>
-        )}
-        <span className="tm-topbar__count">{tasks.length} tasks</span>
-      </header>
+    <div className="cate-app">
+      <Topbar
+        board={board}
+        activeTag={activeTag}
+        count={tasks.length}
+        canAgent={canAgent}
+        onSelectTag={onSelectTag}
+        onNew={() => setDrawer({ kind: 'create' })}
+        onGenerate={() => setDrawer({ kind: 'generate' })}
+      />
 
-      {error && <div className="tm-banner tm-banner--error">Couldn’t read tasks: {error}</div>}
-      {board && tasks.length === 0 && !error && (
-        <div className="tm-banner">This tag has no tasks.</div>
-      )}
+      {error && <div className="cate-banner cate-banner--error">Couldn’t read tasks: {error}</div>}
 
       <div className="tm-board">
         {COLUMNS.map((col) => (
-          <div className="tm-col" key={col.id}>
+          <div
+            className={`tm-col${dragOver === col.id ? ' tm-col--over' : ''}`}
+            key={col.id}
+            onDragOver={(e) => {
+              if (draggingId === null) return
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'move'
+              if (dragOver !== col.id) setDragOver(col.id)
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver((c) => (c === col.id ? null : c))
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              const id = Number(e.dataTransfer.getData('text/plain'))
+              if (Number.isFinite(id)) void onDropTask(id, col.id)
+            }}
+          >
             <div className="tm-col__head">
               {col.label}
               <span className="tm-col__count">{grouped[col.id]?.length ?? 0}</span>
             </div>
             <div className="tm-col__body">
               {(grouped[col.id] ?? []).map((task) => (
-                <TaskCard key={task.id} task={task} onClick={() => setSelectedId(task.id)} />
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onClick={() => setDrawer({ kind: 'detail', id: task.id })}
+                  onDragStart={() => setDraggingId(task.id)}
+                  onDragEnd={() => {
+                    setDraggingId(null)
+                    setDragOver(null)
+                  }}
+                />
               ))}
+              {(grouped[col.id]?.length ?? 0) === 0 && <div className="tm-col__empty">Drop here</div>}
             </div>
           </div>
         ))}
       </div>
 
-      {selected && <TaskDetail task={selected} onClose={() => setSelectedId(null)} />}
+      {drawer?.kind === 'detail' && selectedTask && (
+        <TaskDetail
+          task={selectedTask}
+          onClose={() => setDrawer(null)}
+          onEdit={() => setDrawer({ kind: 'edit', id: selectedTask.id })}
+        />
+      )}
+      {drawer?.kind === 'edit' && selectedTask && (
+        <TaskEditor
+          mode="edit"
+          initial={editorFromTask(selectedTask)}
+          onCancel={() => setDrawer({ kind: 'detail', id: selectedTask.id })}
+          onSave={(v) => saveEditor('edit', v, selectedTask.id)}
+        />
+      )}
+      {drawer?.kind === 'create' && (
+        <TaskEditor
+          mode="create"
+          initial={emptyEditor()}
+          onCancel={() => setDrawer(null)}
+          onSave={(v) => saveEditor('create', v)}
+        />
+      )}
+      {drawer?.kind === 'generate' && (
+        <GenerateDrawer tag={activeTag} onClose={() => setDrawer(null)} onDone={() => void load(true)} />
+      )}
     </div>
+  )
+}
+
+function Topbar({
+  board,
+  activeTag,
+  count,
+  canAgent,
+  onSelectTag,
+  onNew,
+  onGenerate,
+}: {
+  board: Board | null
+  activeTag: string
+  count: number
+  canAgent: boolean
+  onSelectTag: (tag: string) => void
+  onNew: () => void
+  onGenerate: () => void
+}) {
+  return (
+    <header className="cate-topbar">
+      <span className="cate-topbar__title">Task Master</span>
+      {board && board.tags.length > 1 && (
+        <select
+          className="cate-select tm-tagselect"
+          value={activeTag}
+          onChange={(e) => onSelectTag(e.target.value)}
+          aria-label="Tag context"
+        >
+          {board.tags.map((t) => (
+            <option key={t.tag} value={t.tag}>
+              {t.tag} ({t.tasks.length})
+            </option>
+          ))}
+        </select>
+      )}
+      <span className="cate-topbar__spacer" />
+      <span className="tm-muted">{count} tasks</span>
+      {canAgent && (
+        <button className="cate-btn" onClick={onGenerate} type="button">
+          Generate…
+        </button>
+      )}
+      <button className="cate-btn cate-btn--primary" onClick={onNew} type="button">
+        New task
+      </button>
+    </header>
   )
 }
 

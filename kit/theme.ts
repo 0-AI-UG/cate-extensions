@@ -1,0 +1,84 @@
+// =============================================================================
+// Canonical Cate theme bridge for extensions.
+//
+// Every extension used to re-derive its own CSS variables from
+// `cate.theme.get()` with bespoke `pick(...)` guesswork and divergent variable
+// names (--tm-*, --sb-*, --dw-*). This is the one place that mapping lives now:
+// it reads Cate's theme palette and writes the kit's `--cate-*` tokens (see
+// cate-kit.css) onto a root element, plus a `data-cate-theme` attribute so the
+// stylesheet can flip light/dark defaults.
+//
+// Framework-agnostic (no React) so vanilla and React extensions share it.
+// =============================================================================
+
+import type { CateHost, CateHostTheme } from './cate-host'
+
+export type ThemeType = 'dark' | 'light'
+
+/** The injected host, read without augmenting global scope (so the kit never
+ *  collides with an extension's own ambient `cate` declaration). */
+function host(): CateHost | undefined {
+  return (globalThis as { cate?: CateHost }).cate
+}
+
+/** Map of kit token -> ordered list of Cate `theme.app` keys to try. */
+const TOKEN_SOURCES: Record<string, string[]> = {
+  '--cate-bg': ['app-bg', 'editor-bg', 'bg', 'background'],
+  '--cate-bg-elev': ['surface-1', 'panel-bg', 'sidebar-bg', 'titlebar-bg', 'app-bg', 'editor-bg'],
+  '--cate-bg-card': ['surface-2', 'surface', 'input-bg', 'panel-bg', 'editor-bg'],
+  '--cate-fg': ['app-fg', 'editor-fg', 'fg', 'foreground', 'text'],
+  '--cate-muted': ['text-muted', 'fg-muted', 'muted', 'description-fg'],
+  '--cate-border': ['border', 'panel-border', 'border-muted', 'divider', 'editor-line'],
+  '--cate-accent': ['accent', 'primary', 'link', 'button-bg', 'focus-border'],
+  '--cate-accent-fg': ['accent-fg', 'button-fg', 'on-accent'],
+  '--cate-danger': ['error', 'danger', 'error-fg'],
+  '--cate-success': ['success', 'added-fg', 'ok'],
+  '--cate-warning': ['warning', 'modified-fg', 'warn'],
+}
+
+function pick(app: Record<string, string>, keys: string[]): string | null {
+  for (const k of keys) {
+    const v = app[k]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+  }
+  return null
+}
+
+/**
+ * Apply a Cate theme onto a root element as `--cate-*` tokens. Missing tokens
+ * are left to the stylesheet defaults, so a sparse palette still themes the
+ * essentials. Also sets `data-cate-theme="light|dark"` on the root.
+ */
+export function applyTheme(
+  theme: CateHostTheme | null | undefined,
+  root: HTMLElement = document.documentElement,
+): ThemeType {
+  const type: ThemeType = theme?.type === 'light' ? 'light' : 'dark'
+  root.setAttribute('data-cate-theme', type)
+  const app = theme?.app || {}
+  for (const [token, sources] of Object.entries(TOKEN_SOURCES)) {
+    const value = pick(app, sources)
+    if (value) root.style.setProperty(token, value)
+  }
+  return type
+}
+
+/** Read + apply the current theme once. Falls back to dark defaults on error. */
+export async function initTheme(root?: HTMLElement): Promise<ThemeType> {
+  try {
+    const theme = await host()?.theme.get()
+    return applyTheme(theme, root)
+  } catch {
+    return applyTheme(null, root)
+  }
+}
+
+/** Just the light/dark flag, for code paths that need the type but not the vars. */
+export async function readThemeType(): Promise<ThemeType> {
+  try {
+    const theme = await host()?.theme.get()
+    return theme?.type === 'light' ? 'light' : 'dark'
+  } catch {
+    return 'dark'
+  }
+}
