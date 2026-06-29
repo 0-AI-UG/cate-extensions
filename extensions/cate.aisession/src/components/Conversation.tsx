@@ -22,8 +22,12 @@ export function ConversationView({ convo, fileName }: { convo: Convo; fileName?:
           <div className="convo-title" title={convo.title ?? fileName}>{convo.title ?? fileName ?? 'Conversation'}</div>
           <div className="convo-meta">
             {convo.model && <span>{convo.model}</span>}
-            <span>{convo.messages.length} messages</span>
-            {convo.cwd && <span className="convo-cwd" title={convo.cwd}>{convo.cwd}</span>}
+            <span title={`${convo.messages.length} messages`}>{convo.messages.length} turns</span>
+            {convo.cwd && (
+              <span className="convo-cwd" title={convo.cwd}>
+                {convo.cwd.split('/').filter(Boolean).pop()}
+              </span>
+            )}
           </div>
         </div>
       </header>

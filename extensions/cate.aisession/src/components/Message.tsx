@@ -19,7 +19,7 @@ function Thinking({ text }: { text: string }) {
   return (
     <div className="thinking">
       <button className="thinking-head" onClick={() => setOpen((o) => !o)}>
-        {open ? '▾' : '▸'} Thought for a moment
+        {open ? '▾' : '▸'} Thinking
       </button>
       {open && <div className="thinking-body md" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />}
     </div>
@@ -66,10 +66,7 @@ export function MessageView({ message }: { message: Msg }) {
   return (
     <div className={`row ${message.role}`}>
       {bubbleParts.length > 0 && (
-        <div className="bubble">
-          <div className="role-tag">{message.role === 'user' ? 'You' : 'Assistant'}</div>
-          {bubbleParts.map(renderPart)}
-        </div>
+        <div className="bubble">{bubbleParts.map(renderPart)}</div>
       )}
       {toolParts.length > 0 && <div className="tools">{toolParts.map((p, i) => renderPart(p, i))}</div>}
     </div>

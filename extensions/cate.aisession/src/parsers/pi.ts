@@ -3,12 +3,15 @@
 //   <project>/.cate/pi-agent/sessions/<encoded-cwd>/<ts>_<id>.jsonl
 // First line is `{ type: 'session', version, id, cwd }`; `model_change` carries
 // the provider/model; conversation turns are `{ type: 'message', message: {
-// role, content } }` with Anthropic-style content blocks.
+// role, content } }`. The pi-ai message shape differs from Anthropic's in two
+// ways we handle here: an assistant `content` array can include `toolCall`
+// blocks (mapped in blocks.ts), and a tool *result* is its own message with
+// `role: 'toolResult'` (toolName / content / isError) rather than a block.
 // =============================================================================
 
-import type { Conversation, Message, Role } from './types'
+import type { Conversation, Message, Part, Role } from './types'
 import { deriveTitle, pruneEmpty } from './types'
-import { mapAnthropicContent } from './blocks'
+import { mapAnthropicContent, toolResultText } from './blocks'
 
 export function parsePi(lines: Record<string, unknown>[]): Conversation {
   const messages: Message[] = []
@@ -26,10 +29,25 @@ export function parsePi(lines: Record<string, unknown>[]): Conversation {
 
     const msg = o.message as Record<string, unknown> | undefined
     if (!msg) continue
+    const ts = typeof o.timestamp === 'string' ? o.timestamp : undefined
+
+    // pi stores a tool result as its own message, not as a block inside a user
+    // turn. Surface it as a `tool` turn so the result card renders.
+    if (msg.role === 'toolResult') {
+      const part: Part = {
+        kind: 'tool_result',
+        output: toolResultText(msg.content),
+        name: typeof msg.toolName === 'string' ? msg.toolName : undefined,
+        isError: msg.isError === true,
+      }
+      messages.push({ role: 'tool', parts: [part], ts })
+      continue
+    }
+
     const role = (msg.role === 'assistant' ? 'assistant' : msg.role === 'system' ? 'system' : 'user') as Role
     const parts = mapAnthropicContent(msg.content)
     if (parts.length === 0) continue
-    messages.push({ role, parts, ts: typeof o.timestamp === 'string' ? o.timestamp : undefined })
+    messages.push({ role, parts, ts })
   }
 
   const pruned = pruneEmpty(messages)

@@ -1,7 +1,10 @@
 // =============================================================================
-// Anthropic-style content-block mapping, shared by the Claude Code and pi
-// parsers (both persist message content as `string | Block[]` with the same
-// block vocabulary: text / thinking / tool_use / tool_result / image).
+// Content-block mapping, shared by the Claude Code and pi parsers. Claude uses
+// the Anthropic block vocabulary (text / thinking / tool_use / tool_result /
+// image). pi (the pi-ai format) overlaps on text/thinking/image but names tool
+// calls `toolCall` (with `arguments`, not `input`) and stores tool *results* as
+// their own `toolResult`-role message rather than a block — handled in pi.ts.
+// Both extra cases are inert for Claude, so one mapper covers both.
 // =============================================================================
 
 import type { Part } from './types'
@@ -10,7 +13,7 @@ import { stringify } from './types'
 type Block = Record<string, unknown>
 
 /** Flatten a tool_result's `content` (string, or array of text blocks) to text. */
-function toolResultText(content: unknown): string {
+export function toolResultText(content: unknown): string {
   if (typeof content === 'string') return content
   if (Array.isArray(content)) {
     return content
@@ -37,16 +40,25 @@ export function mapAnthropicContent(content: unknown): Part[] {
       case 'thinking': {
         const text = typeof b.thinking === 'string' ? b.thinking : typeof b.text === 'string' ? b.text : ''
         if (text.length) parts.push({ kind: 'thinking', text })
+        else if (b.redacted === true) parts.push({ kind: 'thinking', text: '[redacted reasoning]' })
         break
       }
       case 'redacted_thinking':
         parts.push({ kind: 'thinking', text: '[redacted reasoning]' })
         break
-      case 'tool_use':
+      case 'tool_use': // Anthropic (Claude)
         parts.push({
           kind: 'tool_use',
           name: typeof b.name === 'string' ? b.name : 'tool',
           input: b.input,
+          id: typeof b.id === 'string' ? b.id : undefined,
+        })
+        break
+      case 'toolCall': // pi-ai (pi): args live under `arguments`, not `input`
+        parts.push({
+          kind: 'tool_use',
+          name: typeof b.name === 'string' ? b.name : 'tool',
+          input: b.arguments,
           id: typeof b.id === 'string' ? b.id : undefined,
         })
         break

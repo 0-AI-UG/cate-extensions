@@ -90,6 +90,27 @@ describe('pi', () => {
     expect(c.model).toBe('openai-codex/gpt-5.5')
     expect(c.messages.map((m) => m.role)).toEqual(['user', 'assistant'])
   })
+
+  it('maps pi-ai tool calls (toolCall/arguments) and toolResult messages', () => {
+    // pi names tool calls `toolCall` (args under `arguments`) and persists tool
+    // results as their own `toolResult`-role message — not the Anthropic shape.
+    const c = parseSession(jsonl([
+      { type: 'session', version: 3, id: 'x', cwd: '/repo' },
+      { type: 'model_change', provider: 'openai-codex', modelId: 'gpt-5.5' },
+      { type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'read it' }] } },
+      { type: 'message', message: { role: 'assistant', content: [
+        { type: 'thinking', thinking: 'let me look' },
+        { type: 'toolCall', id: 't1', name: 'read_file', arguments: { path: '/a.ts' } },
+      ] } },
+      { type: 'message', message: { role: 'toolResult', toolCallId: 't1', toolName: 'read_file', isError: false, content: [{ type: 'text', text: 'contents' }] } },
+      { type: 'message', message: { role: 'toolResult', toolCallId: 't2', toolName: 'bash', isError: true, content: [{ type: 'text', text: 'boom' }] } },
+    ]))
+    expect(c.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'tool', 'tool'])
+    expect(c.messages[1].parts.map((p) => p.kind)).toEqual(['thinking', 'tool_use'])
+    expect(c.messages[1].parts[1]).toMatchObject({ kind: 'tool_use', name: 'read_file', input: { path: '/a.ts' } })
+    expect(c.messages[2].parts[0]).toMatchObject({ kind: 'tool_result', name: 'read_file', output: 'contents', isError: false })
+    expect(c.messages[3].parts[0]).toMatchObject({ kind: 'tool_result', name: 'bash', isError: true })
+  })
 })
 
 describe('generic + errors', () => {
