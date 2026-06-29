@@ -61,8 +61,12 @@ async function fetchConfig(): Promise<ConfigStatus> {
 
 // --- the connection widget ---------------------------------------------------
 
+const ICON =
+  '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-linecap="round"/></svg>'
+
 const conn = new ServiceConnection(document.getElementById('root')!, {
   serviceName: 'Sourcebot',
+  icon: ICON,
   description:
     'Connect to a self-hosted Sourcebot instance you run yourself (Cate does not bundle Sourcebot — its license forbids redistribution).',
   connect: {

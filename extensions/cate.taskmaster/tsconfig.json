@@ -13,5 +13,8 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src/public", "src/shared", "src/_kit"]
+  "include": ["src/public", "src/shared", "src/_kit"],
+  // service-detect.ts is a server-only kit module (node: APIs); this panel never
+  // imports it, so keep it out of the DOM/no-node typecheck.
+  "exclude": ["src/_kit/service-detect.ts"]
 }

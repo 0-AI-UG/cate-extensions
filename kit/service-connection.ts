@@ -35,6 +35,10 @@ export interface ConnectConfig {
 
 export interface ServiceConnectionOptions {
   serviceName: string
+  /** Raw SVG markup for the panel glyph, shown above the name (e.g. the
+   *  manifest panel icon). Parsed safely — no scripts run. */
+  icon?: string
+  /** Shown only inside the collapsed "How to run it?" expander, never inline. */
   description?: string
   /** Present for URL-based "connect to existing" services. */
   connect?: ConnectConfig
@@ -53,6 +57,19 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (className) node.className = className
   if (text != null) node.textContent = text
   return node
+}
+
+/** Parse trusted SVG markup into a node without innerHTML (CSP-safe). Returns
+ *  null if the markup doesn't parse to an <svg>. */
+function iconNode(svg: string): SVGElement | null {
+  try {
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml')
+    const root = doc.documentElement
+    if (!root || root.nodeName.toLowerCase() !== 'svg') return null
+    return document.importNode(root, true) as unknown as SVGElement
+  } catch {
+    return null
+  }
 }
 
 export class ServiceConnection {
@@ -115,9 +132,28 @@ export class ServiceConnection {
   // --- renderers -----------------------------------------------------------
 
   private renderHead(): void {
-    const head = el('div', 'cate-conn__head')
-    head.appendChild(el('div', 'cate-conn__title', this.opts.serviceName))
-    this.card.appendChild(head)
+    if (this.opts.icon) {
+      const node = iconNode(this.opts.icon)
+      if (node) {
+        const glyph = el('div', 'cate-conn__icon')
+        glyph.appendChild(node)
+        this.card.appendChild(glyph)
+      }
+    }
+    this.card.appendChild(el('div', 'cate-conn__title', this.opts.serviceName))
+  }
+
+  /** A collapsed "How to run it?" expander carrying the description + help, so
+   *  the default view stays minimal but the prose is one click away. */
+  private renderHelp(extra?: string): void {
+    const parts = [this.opts.description, extra].filter(
+      (p): p is string => !!p && !!p.trim(),
+    )
+    if (!parts.length) return
+    const details = el('details', 'cate-conn__help')
+    details.appendChild(el('summary', undefined, 'How to run it?'))
+    for (const p of parts) details.appendChild(el('p', 'cate-conn__desc', p))
+    this.card.appendChild(details)
   }
 
   private renderBusy(message: string, log?: string): void {
@@ -157,43 +193,49 @@ export class ServiceConnection {
   private renderConnectForm(state: Extract<ConnState, { kind: 'needs-connection' }>): void {
     const cfg = this.opts.connect
     this.renderHead()
-    if (this.opts.description) {
-      this.card.appendChild(el('p', 'cate-conn__desc', this.opts.description))
-    }
     if (!cfg) {
       // No connect config but somehow here: degrade to a busy card.
       this.renderBusy(`Waiting for ${this.opts.serviceName}…`)
       return
     }
     if (state.message) {
-      this.card.appendChild(el('p', 'cate-conn__msg', state.message))
+      this.card.appendChild(el('p', 'cate-conn__msg cate-conn__msg--error', state.message))
     }
 
-    const urlField = el('div', 'cate-field')
-    urlField.appendChild(el('label', 'cate-label', cfg.urlLabel || 'Instance URL'))
+    // The form is the whole interface: an inline [url] [connect] row, plus an
+    // optional key row. Submitting on Enter works via the native form submit.
+    const form = el('form', 'cate-conn__form')
+    const inline = el('div', 'cate-conn__inline')
     const urlInput = el('input', 'cate-input') as HTMLInputElement
     urlInput.type = 'url'
     urlInput.placeholder = cfg.urlPlaceholder || 'https://localhost:3000'
+    urlInput.setAttribute('aria-label', cfg.urlLabel || 'Instance URL')
     urlInput.value = state.baseUrl || ''
-    urlField.appendChild(urlInput)
-    this.card.appendChild(urlField)
+    inline.appendChild(urlInput)
+    const submit = el('button', 'cate-btn cate-btn--primary', 'connect') as HTMLButtonElement
+    submit.type = 'submit'
+    inline.appendChild(submit)
+    form.appendChild(inline)
 
     let keyInput: HTMLInputElement | null = null
     if (cfg.apiKey) {
-      const keyField = el('div', 'cate-field')
-      keyField.appendChild(el('label', 'cate-label', cfg.apiKeyLabel || 'API key (optional)'))
-      keyInput = el('input', 'cate-input') as HTMLInputElement
+      keyInput = el('input', 'cate-input cate-conn__keyrow') as HTMLInputElement
       keyInput.type = 'password'
+      keyInput.placeholder = cfg.apiKeyLabel || 'API key (optional)'
+      keyInput.setAttribute('aria-label', cfg.apiKeyLabel || 'API key (optional)')
       keyInput.value = state.apiKey || ''
-      keyField.appendChild(keyInput)
-      this.card.appendChild(keyField)
+      form.appendChild(keyInput)
     }
 
-    if (cfg.help) this.card.appendChild(el('p', 'cate-conn__desc', cfg.help))
+    if (cfg.onDisconnect && state.baseUrl) {
+      const disconnect = el('button', 'cate-btn cate-btn--ghost cate-conn__disconnect', 'Disconnect')
+      disconnect.type = 'button'
+      disconnect.addEventListener('click', () => void cfg.onDisconnect?.())
+      form.appendChild(disconnect)
+    }
 
-    const actions = el('div', 'cate-conn__actions')
-    const submit = el('button', 'cate-btn cate-btn--primary', 'Connect')
-    submit.addEventListener('click', () => {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault()
       const url = urlInput.value.trim()
       if (!url) {
         urlInput.focus()
@@ -201,12 +243,8 @@ export class ServiceConnection {
       }
       void cfg.onSubmit({ url, apiKey: keyInput?.value.trim() || undefined })
     })
-    actions.appendChild(submit)
-    if (cfg.onDisconnect && state.baseUrl) {
-      const disconnect = el('button', 'cate-btn', 'Disconnect')
-      disconnect.addEventListener('click', () => void cfg.onDisconnect?.())
-      actions.appendChild(disconnect)
-    }
-    this.card.appendChild(actions)
+    this.card.appendChild(form)
+
+    this.renderHelp(cfg.help)
   }
 }

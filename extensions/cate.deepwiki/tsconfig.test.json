@@ -12,7 +12,9 @@
   "include": [
     "src/auth.ts",
     "src/config.ts",
+    "src/_kit/service-detect.ts",
     "src/auth.test.ts",
-    "src/config.test.ts"
+    "src/config.test.ts",
+    "src/detect.test.ts"
   ]
 }

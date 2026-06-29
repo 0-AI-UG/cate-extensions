@@ -526,6 +526,9 @@ function GenerateDrawer({
   )
 }
 
+const EMPTY_ICON =
+  '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><rect x="1.5" y="2.5" width="3.5" height="11" rx="1" fill="none" stroke="currentColor"/><rect x="6.25" y="2.5" width="3.5" height="7" rx="1" fill="none" stroke="currentColor"/><rect x="11" y="2.5" width="3.5" height="9" rx="1" fill="none" stroke="currentColor"/></svg>'
+
 function EmptyState({
   path,
   canAgent,
@@ -539,6 +542,11 @@ function EmptyState({
 }) {
   return (
     <div className="cate-empty">
+      <div
+        className="cate-empty__icon"
+        aria-hidden="true"
+        dangerouslySetInnerHTML={{ __html: EMPTY_ICON }}
+      />
       <h3>No tasks yet</h3>
       <p>Create your first task, or let Cate's agent generate a plan from a spec.</p>
       <div className="cate-conn__actions">
