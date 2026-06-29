@@ -2,7 +2,7 @@
   "id": "cate.deepwiki",
   "name": "DeepWiki",
   "version": "0.1.0",
-  "description": "Browse an auto-generated, interactive codebase wiki (DeepWiki-Open) inside a Cate panel. Connects to a DeepWiki instance you run yourself (set the URL in the panel or via DEEPWIKI_UPSTREAM); code references open in Cate's editor, and Cate's AI provider keys are surfaced as a ready-to-paste .env.",
+  "description": "Browse an auto-generated, interactive codebase wiki (DeepWiki-Open) inside a Cate panel. Auto-connects to a DeepWiki instance you're running (detected on localhost, or set DEEPWIKI_UPSTREAM), falling back to a manual URL prompt; code references open in Cate's editor, and Cate's AI provider keys are surfaced as a ready-to-paste .env.",
   "panels": [
     {
       "id": "wiki",

@@ -271,6 +271,16 @@ body {
 .cate-empty p {
   margin: 0;
 }
+.cate-empty__icon {
+  color: var(--cate-muted);
+  opacity: 0.85;
+  line-height: 0;
+}
+.cate-empty__icon svg {
+  width: 38px;
+  height: 38px;
+  display: block;
+}
 
 /* --- spinner -------------------------------------------------------------- */
 
@@ -358,20 +368,26 @@ body {
 .cate-conn__overlay[hidden] {
   display: none;
 }
+
+/* Minimal, card-less column: glyph, name, then one inline input row. No border
+ * or fill — it sits directly on the panel background. */
 .cate-conn__card {
-  width: min(480px, 100%);
-  background: var(--cate-bg-elev);
-  border: 1px solid var(--cate-border);
-  border-radius: var(--cate-radius);
-  padding: 22px;
+  width: min(380px, 100%);
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 14px;
 }
-.cate-conn__head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.cate-conn__icon {
+  color: var(--cate-muted);
+  opacity: 0.85;
+  line-height: 0;
+}
+.cate-conn__icon svg {
+  width: 38px;
+  height: 38px;
+  display: block;
 }
 .cate-conn__title {
   font-size: 15px;
@@ -380,6 +396,7 @@ body {
 .cate-conn__desc {
   color: var(--cate-muted);
   margin: 0;
+  text-align: left;
 }
 .cate-conn__msg {
   color: var(--cate-fg);
@@ -394,20 +411,67 @@ body {
   gap: 10px;
 }
 .cate-conn__log {
+  max-width: 100%;
   max-height: 160px;
   overflow: auto;
+  text-align: left;
 }
+
+/* --- connect form (inline input + button) --- */
+.cate-conn__form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cate-conn__inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cate-conn__inline .cate-input {
+  flex: 1 1 auto;
+}
+.cate-conn__inline .cate-btn {
+  flex: 0 0 auto;
+}
+.cate-conn__keyrow {
+  width: 100%;
+}
+.cate-conn__disconnect {
+  align-self: center;
+}
+
+/* --- "How to run it?" expander --- */
+.cate-conn__help {
+  width: 100%;
+  margin-top: 2px;
+}
+.cate-conn__help summary {
+  cursor: pointer;
+  color: var(--cate-muted);
+  font-size: 12px;
+  list-style: none;
+  text-align: center;
+}
+.cate-conn__help summary::-webkit-details-marker {
+  display: none;
+}
+.cate-conn__help summary::after {
+  content: ' ›';
+}
+.cate-conn__help[open] summary::after {
+  content: ' ⌄';
+}
+.cate-conn__help p {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+/* --- error actions --- */
 .cate-conn__actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-}
-.cate-conn__advanced {
-  border-top: 1px solid var(--cate-border);
-  padding-top: 12px;
-}
-.cate-conn__advanced summary {
-  cursor: pointer;
-  color: var(--cate-muted);
-  font-size: 12px;
+  justify-content: center;
 }

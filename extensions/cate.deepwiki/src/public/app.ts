@@ -77,8 +77,12 @@ function el<K extends keyof HTMLElementTagNameMap>(
 
 let lastStatus: Status | null = null
 
+const ICON =
+  '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2H7v11H3.5A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" stroke-linejoin="round"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2H9v11h3.5A1.5 1.5 0 0 0 14 11.5z" fill="none" stroke="currentColor" stroke-linejoin="round"/></svg>'
+
 const conn = new ServiceConnection(document.getElementById('root')!, {
   serviceName: 'DeepWiki',
+  icon: ICON,
   description:
     'Connect to a DeepWiki-Open instance you run yourself (this extension does not bundle or start DeepWiki). The simplest way is `docker compose up` in a clone of deepwiki-open, which serves the frontend on http://localhost:3000.',
   connect: {

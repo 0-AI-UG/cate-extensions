@@ -9,11 +9,14 @@
 //   1. On spawn we bind PORT on 127.0.0.1 and serve /health (200) immediately,
 //      satisfying Cate's readiness probe.
 //   2. We resolve the upstream DeepWiki origin: stored value (cate.storage, key
-//      `deepwiki:upstream`) -> DEEPWIKI_UPSTREAM env -> none.
-//   3. With an upstream configured we reverse-proxy every non-control route (HTTP
+//      `deepwiki:upstream`) -> DEEPWIKI_UPSTREAM env -> AUTO-DETECT a running
+//      instance (convention default localhost:3000, then a `docker ps` / `lsof`
+//      scan for a "deepwiki" listener) -> none. Only a stored/env value is
+//      sticky; an auto-detected one is ephemeral and re-checked each status poll.
+//   3. With an upstream resolved we reverse-proxy every non-control route (HTTP
 //      and WebSocket upgrades) to it, stripping X-Frame-Options / upstream CSP so
 //      it frames in the sandboxed webview.
-//   4. With no upstream configured we serve a config page that prompts for the
+//   4. With no upstream found we serve a config page that prompts for the
 //      running DeepWiki URL and shows the .env derived from Cate's provider keys.
 //
 // Cate injects: PORT, HOST, CATE_TOKEN, WORKSPACE_ROOT, CATE_API. Every request
@@ -31,7 +34,14 @@ import {
   type AuthJson,
   type ModelsJson,
 } from './auth'
-import { resolveUpstream, normalizeUpstream, UPSTREAM_ENV, UPSTREAM_STORAGE_KEY } from './config'
+import {
+  resolveUpstream,
+  normalizeUpstream,
+  DEEPWIKI_DEFAULT_FRONTEND,
+  UPSTREAM_ENV,
+  UPSTREAM_STORAGE_KEY,
+} from './config'
+import { detectService } from './_kit/service-detect'
 
 const PORT = Number(process.env.PORT)
 const TOKEN = process.env.CATE_TOKEN || ''
@@ -122,11 +132,28 @@ async function storedUpstream(): Promise<string | undefined> {
 }
 
 // ---------------------------------------------------------------------------
-// Launcher state: the configured upstream DeepWiki origin (or null -> config
-// page). Resolved once at startup; updated when the user saves/clears it.
+// Launcher state: the effective upstream DeepWiki origin (or null -> config
+// page). `explicitUpstream` marks it as a manually saved / env-set value, which
+// is sticky and persisted; otherwise `upstream` is an auto-detected instance,
+// re-resolved on each status check and never written to storage.
 // ---------------------------------------------------------------------------
 
 let upstream: string | null = null
+let explicitUpstream = false
+
+/** Auto-detect a DeepWiki the user is already running: the convention default
+ *  (localhost:3000) first, then any container/process named "deepwiki". Probe-
+ *  gated, so only a reachable instance is adopted. Ephemeral — never persisted;
+ *  only a manually entered URL survives a restart. */
+async function autoDetectUpstream(): Promise<string | null> {
+  const r = await detectService({
+    candidates: [DEEPWIKI_DEFAULT_FRONTEND],
+    probePath: '/',
+    processMatch: /deepwiki/i,
+  })
+  if (r.baseUrl) console.log(`deepwiki: auto-detected ${r.baseUrl} (via ${r.via})`)
+  return r.baseUrl
+}
 
 // ---------------------------------------------------------------------------
 // Static control-panel assets (served from this file's own dir).
@@ -273,10 +300,14 @@ const server = http.createServer(async (req, res) => {
   // which Cate providers are reusable.
   if (pathname === '/api/status' && req.method === 'GET') {
     const { auth, models } = readCateAuth()
+    // With no manual/env upstream, re-run auto-detection so a DeepWiki started
+    // after the panel opened is picked up on the next check (panel Retry).
+    if (!explicitUpstream) upstream = await autoDetectUpstream()
     const reachable = upstream ? await probe(upstream) : false
     sendJson(res, 200, {
       upstream,
       reachable,
+      source: explicitUpstream ? 'manual' : upstream ? 'auto' : null,
       workspaceRoot: WORKSPACE_ROOT || null,
       cateProviders: connectedProviders(auth),
       canReuseCateProvider: hasReusableProvider(auth, models),
@@ -316,9 +347,12 @@ const server = http.createServer(async (req, res) => {
       if (value) {
         await callCateApi('cate.storage.set', { key: UPSTREAM_STORAGE_KEY, value })
         upstream = value
+        explicitUpstream = true
       } else {
+        // Manual disconnect clears the saved URL and resumes auto-detection.
         await callCateApi('cate.storage.delete', { key: UPSTREAM_STORAGE_KEY })
-        upstream = null
+        explicitUpstream = false
+        upstream = await autoDetectUpstream()
       }
       sendJson(res, 200, { ok: true, upstream })
     } catch (err) {
@@ -431,10 +465,12 @@ server.listen(PORT, '127.0.0.1', () => {
   void (async () => {
     const stored = await storedUpstream()
     upstream = resolveUpstream({ stored, env: process.env[UPSTREAM_ENV] })
+    explicitUpstream = upstream != null
+    if (!explicitUpstream) upstream = await autoDetectUpstream()
     if (upstream) {
-      console.log(`deepwiki: proxying to ${upstream}`)
+      console.log(`deepwiki: proxying to ${upstream}${explicitUpstream ? '' : ' (auto-detected)'}`)
     } else {
-      console.log('deepwiki: no upstream configured; serving config page')
+      console.log('deepwiki: no upstream found; serving config page')
     }
   })()
 })

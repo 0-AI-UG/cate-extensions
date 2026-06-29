@@ -3,7 +3,12 @@
 //
 // It does NOT bundle Sourcebot (FSL license — see STATUS.md). It is a thin
 // reverse proxy + native-search backend in front of a Sourcebot instance the
-// USER runs and configures (base URL + optional API key, stored in cate.storage).
+// USER runs. The instance is resolved as: manually saved (base URL + optional
+// API key in cate.storage) -> SOURCEBOT_URL / SOURCEBOT_API_KEY env -> auto-
+// detected (convention default localhost:3000, then a docker/lsof scan for a
+// "sourcebot" listener). Only the manually saved value persists; the panel
+// connects on its own when an instance is found and shows the manual form only
+// as a fallback.
 //
 // Cate spawns it and injects env:
 //   PORT           free loopback port to bind on 127.0.0.1
@@ -28,6 +33,7 @@ import fs from 'fs'
 import path from 'path'
 import { normalizeSearchResponse, normalizeBaseUrl, clampMatches } from './sourcebot'
 import { requestUpstream, probe, rewriteLocation, type SourcebotConfig } from './sourcebotClient'
+import { detectService } from './_kit/service-detect'
 
 const PORT = Number(process.env.PORT)
 const TOKEN = process.env.CATE_TOKEN || ''
@@ -37,6 +43,11 @@ const CATE_API = process.env.CATE_API || ''
 // Storage keys the panel writes (cate.storage) and we read back via CATE_API.
 const KEY_BASE_URL = 'sourcebot:baseUrl'
 const KEY_API_KEY = 'sourcebot:apiKey'
+
+// Env overrides + the convention default used for zero-config auto-detection.
+const ENV_URL = 'SOURCEBOT_URL'
+const ENV_KEY = 'SOURCEBOT_API_KEY'
+const DEFAULT_URL = 'http://localhost:3000'
 
 if (!PORT) {
   console.error('sourcebot: PORT not set by Cate; refusing to start')
@@ -94,14 +105,57 @@ function unwrap(v: unknown): unknown {
   return v && typeof v === 'object' && 'result' in v ? (v as { result: unknown }).result : v
 }
 
-/** Read the user's Sourcebot config from cate.storage. Returns null if unset. */
-async function loadConfig(): Promise<SourcebotConfig | null> {
+/** The user's manually saved Sourcebot config (cate.storage). Null if unset.
+ *  This is the only config that persists; env + auto-detect are ephemeral. */
+async function storedConfig(): Promise<SourcebotConfig | null> {
   const rawBase = unwrap(await callCateApi('cate.storage.get', { key: KEY_BASE_URL }))
   const baseUrl = normalizeBaseUrl(rawBase)
   if (!baseUrl) return null
   const rawKey = unwrap(await callCateApi('cate.storage.get', { key: KEY_API_KEY }))
   const apiKey = typeof rawKey === 'string' && rawKey.trim() ? rawKey.trim() : undefined
   return { baseUrl, apiKey }
+}
+
+/** Config from SOURCEBOT_URL / SOURCEBOT_API_KEY env, or null if unset. */
+function envConfig(): SourcebotConfig | null {
+  const baseUrl = normalizeBaseUrl(process.env[ENV_URL])
+  if (!baseUrl) return null
+  const apiKey = (process.env[ENV_KEY] || '').trim() || undefined
+  return { baseUrl, apiKey }
+}
+
+// Auto-detection (the convention default + a docker/lsof scan for a "sourcebot"
+// listener) is probe-gated and a little costly, so cache it briefly — the search
+// and /sb proxy routes resolve config on every request.
+let autoCache: { cfg: SourcebotConfig | null; at: number } | null = null
+const AUTO_TTL_MS = 5000
+
+async function autoConfig(): Promise<SourcebotConfig | null> {
+  const now = Date.now()
+  if (autoCache && now - autoCache.at < AUTO_TTL_MS) return autoCache.cfg
+  const r = await detectService({
+    candidates: [DEFAULT_URL],
+    probePath: '/',
+    processMatch: /sourcebot/i,
+  })
+  const cfg = r.baseUrl ? { baseUrl: r.baseUrl } : null
+  autoCache = { cfg, at: now }
+  if (cfg) console.log(`sourcebot: auto-detected ${cfg.baseUrl} (via ${r.via})`)
+  return cfg
+}
+
+/** Resolve the effective Sourcebot: manual (saved) -> env -> auto-detected. */
+async function resolveConfig(): Promise<{
+  cfg: SourcebotConfig | null
+  source: 'manual' | 'env' | 'auto' | null
+}> {
+  const stored = await storedConfig()
+  if (stored) return { cfg: stored, source: 'manual' }
+  const env = envConfig()
+  if (env) return { cfg: env, source: 'env' }
+  const auto = await autoConfig()
+  if (auto) return { cfg: auto, source: 'auto' }
+  return { cfg: null, source: null }
 }
 
 // --- static panel assets -----------------------------------------------------
@@ -246,8 +300,9 @@ const server = http.createServer(async (req, res) => {
   // Config status for the panel: is a Sourcebot configured, and is it reachable?
   if (pathname === '/api/config' && req.method === 'GET') {
     let cfg: SourcebotConfig | null = null
+    let source: 'manual' | 'env' | 'auto' | null = null
     try {
-      cfg = await loadConfig()
+      ;({ cfg, source } = await resolveConfig())
     } catch (err) {
       sendJson(res, 200, { configured: false, error: err instanceof Error ? err.message : String(err) })
       return
@@ -259,6 +314,7 @@ const server = http.createServer(async (req, res) => {
     const p = await probe(cfg)
     sendJson(res, 200, {
       configured: true,
+      source,
       baseUrl: cfg.baseUrl,
       hasKey: Boolean(cfg.apiKey),
       reachable: p.reachable,
@@ -272,7 +328,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/sbapi/search' && req.method === 'POST') {
     let cfg: SourcebotConfig | null
     try {
-      cfg = await loadConfig()
+      cfg = (await resolveConfig()).cfg
     } catch (err) {
       sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) })
       return
@@ -336,7 +392,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/sb' || pathname.startsWith('/sb/')) {
     let cfg: SourcebotConfig | null
     try {
-      cfg = await loadConfig()
+      cfg = (await resolveConfig()).cfg
     } catch (err) {
       res.writeHead(500).end(err instanceof Error ? err.message : String(err))
       return

@@ -23,8 +23,12 @@ interface WrapperStatus {
   stderrTail?: string[]
 }
 
+const ICON =
+  '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="2" fill="none" stroke="currentColor"/><circle cx="3" cy="3" r="1.5" fill="none" stroke="currentColor"/><circle cx="13" cy="3" r="1.5" fill="none" stroke="currentColor"/><circle cx="3" cy="13" r="1.5" fill="none" stroke="currentColor"/><circle cx="13" cy="13" r="1.5" fill="none" stroke="currentColor"/><path d="M6.5 6.5 4 4M9.5 6.5 12 4M6.5 9.5 4 12M9.5 9.5 12 12" stroke="currentColor"/></svg>'
+
 const conn = new ServiceConnection(document.getElementById('root')!, {
   serviceName: 'MCPHub',
+  icon: ICON,
   description: 'A local MCPHub install is launched and embedded here. The first run may download it.',
   onRetry: () => void start(),
   onReady: (mount) => {

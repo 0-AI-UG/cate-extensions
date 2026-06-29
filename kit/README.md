@@ -9,6 +9,7 @@ single source of truth.**
 | `cate-kit.css` | Design tokens (`--cate-*`) + base component classes (`cate-*`): app shell, buttons, inputs, cards, banners, drawer, empty state, spinner, and the service-connection card. |
 | `theme.ts` | `applyTheme()` / `initTheme()` — maps `cate.theme.get()` onto the kit's `--cate-*` tokens. The one canonical theme bridge (replaces per-extension `pick(...)` guesswork). |
 | `service-connection.ts` | `ServiceConnection` — vanilla state-machine widget that gates a content area behind a coherent connection card (provisioning / connecting / connect-form / error / ready). Used by mcphub, sourcebot, deepwiki. |
+| `service-detect.ts` | **Server-side (Node).** `detectService()` — auto-discovers a user-run backend by probing candidate URLs (env / convention default) then scanning `docker ps` / `lsof` for a matching listener. Lets deepwiki/sourcebot connect on their own and fall back to the manual form only when nothing is found. Browser code must not import it; it's excluded from each consumer's browser typecheck. |
 | `cate-host.d.ts` | Canonical typings for the injected `cate` host API. Imported for types only; does not augment global scope. |
 
 ## How it ships
