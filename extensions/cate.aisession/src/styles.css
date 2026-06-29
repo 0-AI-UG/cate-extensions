@@ -292,42 +292,6 @@ body {
 
 .image-part { color: var(--fg-muted); font-size: 12px; }
 
-/* --- embedded JSON block -------------------------------------------------- */
-
-.json-block {
-  margin: 6px 0;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--bg-sunken);
-  overflow: hidden;
-}
-.json-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  color: var(--fg-dim);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  padding: 6px 10px;
-  cursor: pointer;
-}
-.json-head .dim { color: var(--fg-muted); }
-.json-body {
-  margin: 0;
-  padding: 8px 10px;
-  border-top: 1px solid var(--line);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  color: var(--fg-dim);
-  white-space: pre;
-  overflow: auto;
-  max-height: 360px;
-}
-
 /* --- markdown ------------------------------------------------------------- */
 
 .md > *:first-child { margin-top: 0; }

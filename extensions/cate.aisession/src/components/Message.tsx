@@ -8,42 +8,10 @@
 import { useState } from 'react'
 import type { Message as Msg, Part } from '../parsers/types'
 import { renderMarkdown } from '../lib/markdown'
-import { extractSegments, prettyJson } from '../lib/segments'
 import { ToolUse, ToolResult } from './ToolBlock'
 
-function JsonBlock({ value }: { value: unknown }) {
-  const text = prettyJson(value)
-  const lines = text.split('\n')
-  const long = lines.length > 16
-  const [open, setOpen] = useState(!long)
-  return (
-    <div className="json-block">
-      <button className="json-head" onClick={() => setOpen((o) => !o)}>
-        {open ? '▾' : '▸'} JSON <span className="dim">{lines.length} lines</span>
-      </button>
-      {open && <pre className="json-body">{text}</pre>}
-    </div>
-  )
-}
-
-/** Render message text, lifting embedded JSON blobs out of the prose into
- *  pretty, collapsible blocks. */
 function Markdown({ text }: { text: string }) {
-  const segments = extractSegments(text)
-  if (segments.length === 1 && segments[0].kind === 'text') {
-    return <div className="md" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />
-  }
-  return (
-    <>
-      {segments.map((seg, i) =>
-        seg.kind === 'json' ? (
-          <JsonBlock key={i} value={seg.value} />
-        ) : (
-          <div key={i} className="md" dangerouslySetInnerHTML={{ __html: renderMarkdown(seg.text) }} />
-        ),
-      )}
-    </>
-  )
+  return <div className="md" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />
 }
 
 function Thinking({ text }: { text: string }) {
