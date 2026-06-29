@@ -1,0 +1,16 @@
+{
+  "id": "cate.aisession",
+  "name": "AI Session Viewer",
+  "version": "1.0.0",
+  "frontend": "index.html",
+  "description": "Drop a Claude Code, Codex, or pi session file to read it back as a chat.",
+  "panels": [
+    {
+      "id": "main",
+      "label": "AI Session Viewer",
+      "icon": "<svg viewBox=\"0 0 16 16\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M2.5 3.5h11a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H7l-3 2.5V10.5H2.5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1Z\" fill=\"none\" stroke=\"currentColor\"/></svg>",
+      "defaultSize": { "width": 560, "height": 760 }
+    }
+  ],
+  "cateApi": ["files.drop", "theme"]
+}
