@@ -43,6 +43,15 @@ export interface CatePanel {
   setTitle(title: string): Promise<void>
 }
 
+/** A file the user dragged onto this panel, delivered to `cate.files.onDrop`. */
+export interface CateDroppedFile {
+  name: string
+  path: string | null
+  text: string
+  size?: number
+  truncated?: boolean
+}
+
 export interface CateHost {
   version(): Promise<number>
   panel: CatePanel
@@ -58,6 +67,7 @@ export interface CateHost {
     ): Promise<unknown>
   }
   ui: { notify(message: string, level?: 'info' | 'warn' | 'error'): Promise<unknown> }
+  files: { onDrop(cb: (files: CateDroppedFile[]) => void): () => void }
   agent: {
     open(opts?: { resume?: string }): Promise<{ sessionId: string } | { error: string }>
     send(sessionId: string, prompt: string): Promise<AgentTurnResult | { error: string }>
