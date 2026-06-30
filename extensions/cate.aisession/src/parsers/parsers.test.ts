@@ -39,16 +39,17 @@ describe('Claude Code', () => {
     { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'file.txt' }] } },
   ])
 
-  it('parses model, drops meta turns, maps blocks', () => {
+  it('parses model, drops meta turns, maps blocks, folds the result into its call', () => {
     const c = parseSession(fixture)
     expect(c.source).toBe('claude')
     expect(c.model).toBe('claude-opus-4-8')
     expect(c.title).toBe('Add a button')
-    // meta caveat is dropped entirely (isMeta), leaving user + assistant + tool result.
-    expect(c.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user'])
+    // The tool result (tool_use_id t1) folds into the assistant's tool_use, so the
+    // trailing tool-result-only user turn is gone: just user + assistant remain.
+    expect(c.messages.map((m) => m.role)).toEqual(['user', 'assistant'])
     const assistant = c.messages[1]
     expect(assistant.parts.map((p) => p.kind)).toEqual(['thinking', 'text', 'tool_use'])
-    expect(c.messages[2].parts[0]).toMatchObject({ kind: 'tool_result', output: 'file.txt' })
+    expect(assistant.parts[2]).toMatchObject({ kind: 'tool_use', name: 'Bash', result: { output: 'file.txt' } })
   })
 })
 
@@ -64,15 +65,17 @@ describe('Codex', () => {
     { timestamp: 't7', type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Done.' }] } },
   ])
 
-  it('parses cwd, reasoning, tool calls/outputs in stream order', () => {
+  it('parses cwd, reasoning, tool calls in stream order, folds output into its call', () => {
     const c = parseSession(fixture)
     expect(c.source).toBe('codex')
     expect(c.cwd).toBe('/repo')
     expect(c.title).toBe('Fix the bug')
-    expect(c.messages.map((m) => m.role)).toEqual(['system', 'user', 'assistant', 'assistant', 'tool', 'assistant'])
+    // function_call_output (call_id c1) folds into the function_call, so the
+    // standalone tool row is gone.
+    expect(c.messages.map((m) => m.role)).toEqual(['system', 'user', 'assistant', 'assistant', 'assistant'])
     expect(c.messages[2].parts[0]).toMatchObject({ kind: 'thinking' })
-    expect(c.messages[3].parts[0]).toMatchObject({ kind: 'tool_use', name: 'exec_command', input: { cmd: 'pwd' } })
-    expect(c.messages[4].parts[0]).toMatchObject({ kind: 'tool_result', output: '/repo' })
+    expect(c.messages[3].parts[0]).toMatchObject({ kind: 'tool_use', name: 'exec_command', input: { cmd: 'pwd' }, result: { output: '/repo' } })
+    expect(c.messages[4].parts[0]).toMatchObject({ kind: 'text', text: 'Done.' })
   })
 })
 
@@ -105,11 +108,42 @@ describe('pi', () => {
       { type: 'message', message: { role: 'toolResult', toolCallId: 't1', toolName: 'read_file', isError: false, content: [{ type: 'text', text: 'contents' }] } },
       { type: 'message', message: { role: 'toolResult', toolCallId: 't2', toolName: 'bash', isError: true, content: [{ type: 'text', text: 'boom' }] } },
     ]))
-    expect(c.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'tool', 'tool'])
+    // t1 folds into the matching read_file call; t2 has no matching call, so it
+    // stays as a standalone tool row (nothing is silently dropped).
+    expect(c.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'tool'])
     expect(c.messages[1].parts.map((p) => p.kind)).toEqual(['thinking', 'tool_use'])
-    expect(c.messages[1].parts[1]).toMatchObject({ kind: 'tool_use', name: 'read_file', input: { path: '/a.ts' } })
-    expect(c.messages[2].parts[0]).toMatchObject({ kind: 'tool_result', name: 'read_file', output: 'contents', isError: false })
-    expect(c.messages[3].parts[0]).toMatchObject({ kind: 'tool_result', name: 'bash', isError: true })
+    expect(c.messages[1].parts[1]).toMatchObject({
+      kind: 'tool_use', name: 'read_file', input: { path: '/a.ts' }, result: { output: 'contents', isError: false },
+    })
+    expect(c.messages[2].parts[0]).toMatchObject({ kind: 'tool_result', name: 'bash', isError: true })
+  })
+})
+
+describe('tool-result folding (no stray "result" dividers)', () => {
+  it('folds every pi tool result into its call and drops empty turns', () => {
+    // Mirrors a real chat-widget session: two read_terminal calls + results, a
+    // remark + ack result, and an empty trailing assistant turn. Previously each
+    // result rendered as its own card (empty ones looked like dividers).
+    const c = parseSession(jsonl([
+      { type: 'session', version: 3, id: 'x', cwd: '/repo' },
+      { type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'state below' }] } },
+      { type: 'message', message: { role: 'assistant', content: [
+        { type: 'thinking', thinking: 'look' },
+        { type: 'toolCall', id: 'a', name: 'read_terminal', arguments: { terminalId: 'a' } },
+        { type: 'toolCall', id: 'b', name: 'read_terminal', arguments: { terminalId: 'b' } },
+      ] } },
+      { type: 'message', message: { role: 'toolResult', toolCallId: 'a', toolName: 'read_terminal', isError: false, content: [{ type: 'text', text: 'out-a' }] } },
+      { type: 'message', message: { role: 'toolResult', toolCallId: 'b', toolName: 'read_terminal', isError: false, content: [{ type: 'text', text: '' }] } },
+      { type: 'message', message: { role: 'assistant', content: [{ type: 'thinking', thinking: '' }, { type: 'toolCall', id: 'c', name: 'remark', arguments: { text: 'idle' } }] } },
+      { type: 'message', message: { role: 'toolResult', toolCallId: 'c', toolName: 'remark', isError: false, content: [{ type: 'text', text: '{"ok":true}' }] } },
+      { type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: '' }] } },
+    ]))
+    // No standalone tool rows survive; the empty assistant turn is gone.
+    expect(c.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'assistant'])
+    expect(c.messages.some((m) => m.parts.some((p) => p.kind === 'tool_result'))).toBe(false)
+    // Each call carries its own result (even the empty one).
+    const calls = c.messages.flatMap((m) => m.parts).filter((p) => p.kind === 'tool_use')
+    expect(calls.map((p: any) => p.result?.output)).toEqual(['out-a', '', '{"ok":true}'])
   })
 })
 

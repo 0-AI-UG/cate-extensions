@@ -39,6 +39,7 @@ export function parsePi(lines: Record<string, unknown>[]): Conversation {
         output: toolResultText(msg.content),
         name: typeof msg.toolName === 'string' ? msg.toolName : undefined,
         isError: msg.isError === true,
+        id: typeof msg.toolCallId === 'string' ? msg.toolCallId : undefined,
       }
       messages.push({ role: 'tool', parts: [part], ts })
       continue

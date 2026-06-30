@@ -9,12 +9,18 @@ export type Source = 'claude' | 'codex' | 'pi' | 'generic'
 
 export type Role = 'user' | 'assistant' | 'system' | 'tool'
 
+/** A tool's output, folded into its originating tool_use for rendering. */
+export interface ToolOutcome {
+  output: string
+  isError?: boolean
+}
+
 /** One renderable piece of a message. */
 export type Part =
   | { kind: 'text'; text: string }
   | { kind: 'thinking'; text: string }
-  | { kind: 'tool_use'; name: string; input?: unknown; id?: string }
-  | { kind: 'tool_result'; output: string; name?: string; isError?: boolean }
+  | { kind: 'tool_use'; name: string; input?: unknown; id?: string; result?: ToolOutcome }
+  | { kind: 'tool_result'; output: string; name?: string; isError?: boolean; id?: string }
   | { kind: 'image'; alt: string }
 
 export interface Message {
@@ -102,6 +108,36 @@ export function reclassifyContextNoise(messages: Message[]): Message[] {
     const text = messageText(m)
     return text && isContextNoise(text) ? { ...m, role: 'system' } : m
   })
+}
+
+/** Fold each tool_result into its originating tool_use (matched by id) so a call
+ *  and its output render as a single card — no standalone "result" rows (which,
+ *  when a tool returns nothing, read as stray dividers between turns). Results
+ *  with no matching call are left in place so nothing is silently dropped. */
+export function pairToolResults(messages: Message[]): Message[] {
+  // First id wins, mirroring the on-disk call→result ordering.
+  const resultById = new Map<string, Extract<Part, { kind: 'tool_result' }>>()
+  for (const m of messages) {
+    for (const p of m.parts) {
+      if (p.kind === 'tool_result' && p.id && !resultById.has(p.id)) resultById.set(p.id, p)
+    }
+  }
+
+  const consumed = new Set<string>()
+  const out: Message[] = []
+  for (const m of messages) {
+    const parts = m.parts.map((p) => {
+      if (p.kind !== 'tool_use' || !p.id) return p
+      const r = resultById.get(p.id)
+      if (!r) return p
+      consumed.add(p.id)
+      return { ...p, result: { output: r.output, isError: r.isError } }
+    })
+    // Drop the now-folded standalone results; keep any unmatched ones.
+    const kept = parts.filter((p) => !(p.kind === 'tool_result' && p.id && consumed.has(p.id)))
+    if (kept.length > 0) out.push({ ...m, parts: kept })
+  }
+  return out
 }
 
 /** Drop messages that ended up with nothing renderable. */

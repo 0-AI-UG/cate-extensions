@@ -89,7 +89,11 @@ export function parseCodex(lines: Record<string, unknown>[]): Conversation {
       case 'function_call_output':
       case 'custom_tool_call_output': {
         const out = p.output
-        push('tool', { kind: 'tool_result', output: typeof out === 'string' ? out : stringify(out) }, ts)
+        push('tool', {
+          kind: 'tool_result',
+          output: typeof out === 'string' ? out : stringify(out),
+          id: typeof p.call_id === 'string' ? p.call_id : undefined,
+        }, ts)
         break
       }
       default:

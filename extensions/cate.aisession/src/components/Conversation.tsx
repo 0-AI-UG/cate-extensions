@@ -1,35 +1,19 @@
 // =============================================================================
-// The rendered conversation: a header (source, title, model, counts) over a
-// scrollable list of turns.
+// The rendered conversation: a thin header (title only) over a scrollable list
+// of turns. The turn list mirrors Cate's agent panel — user messages as
+// right-aligned bubbles, assistant messages full-width.
 // =============================================================================
 
 import type { Conversation as Convo } from '../parsers/types'
 import { MessageView } from './Message'
 
-const SOURCE_LABEL: Record<Convo['source'], string> = {
-  claude: 'Claude Code',
-  codex: 'Codex',
-  pi: 'pi',
-  generic: 'Chat',
-}
-
 export function ConversationView({ convo, fileName }: { convo: Convo; fileName?: string }) {
   return (
     <div className="conversation">
       <header className="convo-header">
-        <span className={`source-badge source-${convo.source}`}>{SOURCE_LABEL[convo.source]}</span>
-        <div className="convo-titles">
-          <div className="convo-title" title={convo.title ?? fileName}>{convo.title ?? fileName ?? 'Conversation'}</div>
-          <div className="convo-meta">
-            {convo.model && <span>{convo.model}</span>}
-            <span title={`${convo.messages.length} messages`}>{convo.messages.length} turns</span>
-            {convo.cwd && (
-              <span className="convo-cwd" title={convo.cwd}>
-                {convo.cwd.split('/').filter(Boolean).pop()}
-              </span>
-            )}
-          </div>
-        </div>
+        <span className="convo-title" title={convo.title ?? fileName}>
+          {convo.title ?? fileName ?? 'Conversation'}
+        </span>
       </header>
       <div className="messages">
         {convo.messages.map((m, i) => (

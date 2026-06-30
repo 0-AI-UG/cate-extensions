@@ -67,6 +67,7 @@ export function mapAnthropicContent(content: unknown): Part[] {
           kind: 'tool_result',
           output: toolResultText(b.content),
           isError: b.is_error === true,
+          id: typeof b.tool_use_id === 'string' ? b.tool_use_id : undefined,
         })
         break
       case 'image':

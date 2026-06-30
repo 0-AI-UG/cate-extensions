@@ -1,8 +1,9 @@
 // =============================================================================
-// One conversation turn. Text/thinking render as a chat bubble aligned by role
-// (user right, assistant left); tool calls/results render full-width as cards in
-// stream order. Injected-context turns (reclassified to `system`) collapse into
-// a thin, expandable divider so they don't drown the real conversation.
+// One conversation turn, mirroring Cate's agent panel. User text renders as a
+// right-aligned plain-text bubble; assistant text renders full-width as
+// Markdown. Tool calls/results render full-width as cards in stream order.
+// Injected-context turns (reclassified to `system`) collapse into a thin,
+// expandable divider so they don't drown the real conversation.
 // =============================================================================
 
 import { useState } from 'react'
@@ -19,17 +20,21 @@ function Thinking({ text }: { text: string }) {
   return (
     <div className="thinking">
       <button className="thinking-head" onClick={() => setOpen((o) => !o)}>
-        {open ? '▾' : '▸'} Thinking
+        Thinking
       </button>
-      {open && <div className="thinking-body md" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />}
+      {open && <pre className="thinking-body">{text}</pre>}
     </div>
   )
 }
 
-function renderPart(part: Part, key: number) {
+function renderPart(part: Part, key: number, plainText = false) {
   switch (part.kind) {
     case 'text':
-      return <Markdown key={key} text={part.text} />
+      return plainText ? (
+        <div key={key} className="plain-text">{part.text}</div>
+      ) : (
+        <Markdown key={key} text={part.text} />
+      )
     case 'thinking':
       return <Thinking key={key} text={part.text} />
     case 'tool_use':
@@ -50,7 +55,7 @@ function SystemTurn({ message }: { message: Msg }) {
       <button className="system-head" onClick={() => setOpen((o) => !o)}>
         {open ? '▾' : '▸'} context
       </button>
-      {open && <div className="system-body">{message.parts.map(renderPart)}</div>}
+      {open && <div className="system-body">{message.parts.map((p, i) => renderPart(p, i))}</div>}
     </div>
   )
 }
@@ -58,16 +63,22 @@ function SystemTurn({ message }: { message: Msg }) {
 export function MessageView({ message }: { message: Msg }) {
   if (message.role === 'system') return <SystemTurn message={message} />
 
-  // Split conversational text/thinking (which live in the aligned bubble) from
-  // tool blocks (which span full width below).
-  const bubbleParts = message.parts.filter((p) => p.kind === 'text' || p.kind === 'thinking' || p.kind === 'image')
+  // Split conversational text/thinking (the role-aligned content) from tool
+  // blocks (which span full width below).
+  const contentParts = message.parts.filter((p) => p.kind === 'text' || p.kind === 'thinking' || p.kind === 'image')
   const toolParts = message.parts.filter((p) => p.kind === 'tool_use' || p.kind === 'tool_result')
+  const isUser = message.role === 'user'
 
   return (
     <div className={`row ${message.role}`}>
-      {bubbleParts.length > 0 && (
-        <div className="bubble">{bubbleParts.map(renderPart)}</div>
-      )}
+      {contentParts.length > 0 &&
+        (isUser ? (
+          // User: a right-aligned plain-text bubble (no Markdown), like the agent panel.
+          <div className="bubble">{contentParts.map((p, i) => renderPart(p, i, true))}</div>
+        ) : (
+          // Assistant: full-width Markdown, no bubble.
+          <div className="assistant-content">{contentParts.map((p, i) => renderPart(p, i))}</div>
+        ))}
       {toolParts.length > 0 && <div className="tools">{toolParts.map((p, i) => renderPart(p, i))}</div>}
     </div>
   )

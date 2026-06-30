@@ -6,7 +6,7 @@
 // =============================================================================
 
 import type { Conversation, Source } from './types'
-import { deriveTitle, parseJsonl, reclassifyContextNoise } from './types'
+import { deriveTitle, pairToolResults, parseJsonl, reclassifyContextNoise } from './types'
 import { parseClaude } from './claude'
 import { parseCodex } from './codex'
 import { parsePi } from './pi'
@@ -63,8 +63,8 @@ export function parseSession(text: string): Conversation {
     throw new Error('Unrecognized session file — expected a Claude Code, Codex, or pi .jsonl, or a JSON chat export.')
   }
 
-  // Uniform post-processing: collapse injected-context turns and title from the
-  // first real user line.
-  const messages = reclassifyContextNoise(conversation.messages)
+  // Uniform post-processing: fold tool results into their call cards, collapse
+  // injected-context turns, and title from the first real user line.
+  const messages = reclassifyContextNoise(pairToolResults(conversation.messages))
   return { ...conversation, messages, title: deriveTitle(messages) ?? conversation.title }
 }
