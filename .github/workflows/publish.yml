@@ -68,32 +68,41 @@ jobs:
       - name: Build catalog
         run: ./build.sh
 
-  # Build + publish to GitHub Pages on push to main (or manual dispatch).
+  # Build + publish the catalog on push to main (or manual dispatch). The
+  # catalog (index.json) and its artifact tarballs are hosted as assets on one
+  # rolling GitHub Release tagged `catalog`, served over GitHub's CDN — no
+  # GitHub Pages, and nothing committed back to the repo. Cate fetches
+  # https://github.com/0-AI-UG/cate-extensions/releases/download/catalog/index.json
   publish:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      pages: write
-      id-token: write
-      contents: read
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      contents: write # manage the `catalog` release + its assets
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
       - name: Build catalog
         run: ./build.sh
         env:
-          CATALOG_BASE_URL: https://0-ai-ug.github.io/cate-extensions
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          # Release assets live in a flat namespace, so gen-catalog emits
+          # artifactUrls of the form <base>/<id>-<version>.tgz (no /artifacts/).
+          CATALOG_BASE_URL: https://github.com/${{ github.repository }}/releases/download/catalog
+      - name: Publish catalog to the rolling release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Ensure the rolling `catalog` release exists (idempotent).
+          gh release view catalog >/dev/null 2>&1 || \
+            gh release create catalog \
+              --title "Extension catalog" \
+              --notes "Rolling release hosting the Cate extension catalog: index.json plus each extension's artifact tarball. Updated automatically on every push to main." \
+              --latest=false
+          # Upload the freshly built index + all artifacts, replacing prior
+          # assets of the same name. Stale tarballs from retired extensions are
+          # left in place (harmless — index.json never references them).
+          gh release upload catalog \
+            dist/catalog/index.json \
+            dist/artifacts/*.tgz \
+            --clobber

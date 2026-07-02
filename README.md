@@ -15,7 +15,7 @@ Two example extensions:
 In Cate, open Settings, Extensions, Catalog sources, and add:
 
 ```
-https://0-ai-ug.github.io/cate-extensions/catalog/index.json
+https://github.com/0-AI-UG/cate-extensions/releases/download/catalog/index.json
 ```
 
 Then Refresh catalog. Listed extensions can be installed and enabled from the
@@ -28,14 +28,16 @@ The trust boundary is PR review: changes land via pull request, and merging to
 
 - On a pull request, CI runs `./build.sh` to validate that every extension
   builds.
-- On push to `main`, CI runs
-  `CATALOG_BASE_URL=https://0-ai-ug.github.io/cate-extensions ./build.sh` and
-  deploys `dist/` to GitHub Pages:
-  - `https://0-ai-ug.github.io/cate-extensions/catalog/index.json`
-  - `https://0-ai-ug.github.io/cate-extensions/artifacts/<id>-<version>.tgz`
+- On push to `main`, CI runs `./build.sh` with `CATALOG_BASE_URL` pointing at
+  the rolling `catalog` release, then uploads `index.json` and every artifact
+  tarball as assets on that one GitHub Release (`gh release upload --clobber`).
+  GitHub serves them over its CDN:
+  - `https://github.com/0-AI-UG/cate-extensions/releases/download/catalog/index.json`
+  - `https://github.com/0-AI-UG/cate-extensions/releases/download/catalog/<id>-<version>.tgz`
 
-(GitHub Pages for the `0-AI-UG` org serves from the lowercased
-`0-ai-ug.github.io` host.)
+Nothing is committed back to the repo and no GitHub Pages deploy is involved.
+Stale tarballs from retired extensions may linger as release assets; that is
+harmless because `index.json` (the source of truth) never references them.
 
 ## Index shape
 
@@ -46,7 +48,7 @@ A catalog source is an `http(s)://` URL; Cate fetches the index JSON:
   "extensions": [
     {
       "manifest": { "...": "full ExtensionManifest" },
-      "artifactUrl": "https://0-ai-ug.github.io/cate-extensions/artifacts/<id>-<version>.tgz",
+      "artifactUrl": "https://github.com/0-AI-UG/cate-extensions/releases/download/catalog/<id>-<version>.tgz",
       "sha256": "<hex>",
       "description": "..."
     }

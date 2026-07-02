@@ -7,8 +7,10 @@
 // computes its sha256, and emits a catalog entry.
 //
 //   artifactUrl:
-//     - ${CATALOG_BASE_URL}/artifacts/<id>-<version>.tgz   when CATALOG_BASE_URL
-//       is set (absolute https:// URL for a remote/published catalog).
+//     - ${CATALOG_BASE_URL}/<id>-<version>.tgz   when CATALOG_BASE_URL is set
+//       (absolute https:// URL for a remote/published catalog). CI points this
+//       at the rolling GitHub Release that hosts the artifacts, whose assets
+//       live in a flat namespace, so no /artifacts/ path segment.
 //     - file://<abs path to dist/artifacts/<id>-<version>.tgz>  otherwise
 //       (local testing — Cate treats non-http(s) URLs as local paths and a
 //       file:// URL points straight at the on-disk artifact).
@@ -76,7 +78,7 @@ for (const entry of entries) {
   }
 
   const artifactUrl = baseUrl
-    ? `${baseUrl}/artifacts/${artifactName}`
+    ? `${baseUrl}/${artifactName}`
     : pathToFileURL(artifactPath).href;
 
   const description =
