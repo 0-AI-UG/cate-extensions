@@ -54,6 +54,11 @@ export interface RegistryEntry {
   publisher: string
   packages: RegistryPackage[]
   remotes: RegistryRemote[]
+  /** Source repository URL (usually GitHub), shown as a link on the card. */
+  repoUrl?: string
+  /** ISO timestamps from the registry's _meta, used for ranking. */
+  publishedAt?: string
+  updatedAt?: string
 }
 
 export interface RegistrySearchPage {
@@ -127,6 +132,7 @@ function parseServer(v: unknown): RegistryEntry | null {
       remotes.push({ type: str(r.type) ?? 'streamable-http', url: r.url, headers: parseKeyValues(r.headers) })
     }
   }
+  const repoUrl = isObject(v.repository) ? str(v.repository.url) : undefined
   return {
     name,
     title: str(v.title),
@@ -135,6 +141,7 @@ function parseServer(v: unknown): RegistryEntry | null {
     publisher: name.includes('/') ? name.slice(0, name.indexOf('/')) : name,
     packages,
     remotes,
+    repoUrl,
   }
 }
 
@@ -145,7 +152,14 @@ export function parseRegistryResponse(body: unknown): RegistrySearchPage {
   if (Array.isArray(body.servers)) {
     for (const wrapper of body.servers) {
       const entry = parseServer(isObject(wrapper) ? wrapper.server : undefined)
-      if (entry) entries.push(entry)
+      if (!entry) continue
+      // Ranking timestamps live on the wrapper's _meta, not the server object.
+      const meta = isObject(wrapper) && isObject(wrapper._meta) ? wrapper._meta['io.modelcontextprotocol.registry/official'] : undefined
+      if (isObject(meta)) {
+        entry.publishedAt = str(meta.publishedAt)
+        entry.updatedAt = str(meta.updatedAt)
+      }
+      entries.push(entry)
     }
   }
   const metadata = isObject(body.metadata) ? body.metadata : {}

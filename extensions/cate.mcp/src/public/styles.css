@@ -390,19 +390,18 @@
   flex: 1;
   max-width: 480px;
 }
-.mcp-disc__filters {
+.mcp-disc__controls {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.mcp-mkt__intro {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.mcp-disc__spacer {
+  flex: 1;
 }
-.mcp-mkt__title {
-  font-size: 14px;
-  font-weight: 600;
+.mcp-disc__sort {
+  height: 26px;
+  padding: 0 6px;
+  font-size: 11.5px;
 }
 .mcp-mkt__count {
   color: var(--cate-muted);
@@ -498,23 +497,28 @@
   font-size: 11px;
   word-break: break-all;
 }
+.mcp-mktcard__repo {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--cate-accent);
+  font-size: 12px;
+  text-decoration: none;
+  word-break: break-all;
+}
+.mcp-mktcard__repo:hover {
+  text-decoration: underline;
+}
 
-/* One installable option (a remote endpoint or a package). */
+/* One option row (a remote endpoint or a package) — read-only detail. */
 .mcp-mktopt {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
   padding: 8px 10px;
   border: 1px solid var(--cate-border);
   border-radius: var(--cate-radius-sm);
   background: var(--cate-bg);
-}
-.mcp-mktopt__main {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 .mcp-mktopt__head {
   display: flex;

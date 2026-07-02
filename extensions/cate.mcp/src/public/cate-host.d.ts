@@ -43,6 +43,9 @@ interface CateHost {
   editor: {
     openFile(path: string, opts?: { line?: number; column?: number }): Promise<unknown>
   }
+  canvas: {
+    createPanel(type: string, opts?: { url?: string; filePath?: string }): Promise<unknown>
+  }
   ui: { notify(message: string, level?: 'info' | 'warn' | 'error'): Promise<unknown> }
   storage: CateHostStorage
 }
