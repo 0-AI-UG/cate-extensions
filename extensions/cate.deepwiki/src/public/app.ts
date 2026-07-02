@@ -12,7 +12,7 @@
 import '../_kit/cate-kit.css'
 import './style.css'
 import { initTheme } from '../_kit/theme'
-import { ServiceConnection } from '../_kit/service-connection'
+import { ServiceConnection, iconNode } from '../_kit/service-connection'
 
 // Self-contained copy of the parser used by the server, so the panel can decide
 // locally whether a clicked link is a workspace file reference. Kept in sync
@@ -83,6 +83,7 @@ const ICON =
 const conn = new ServiceConnection(document.getElementById('root')!, {
   serviceName: 'DeepWiki',
   icon: ICON,
+  repo: 'https://github.com/AsyncFuncAI/deepwiki-open',
   description:
     'Connect to a DeepWiki-Open instance you run yourself (this extension does not bundle or start DeepWiki). The simplest way is `docker compose up` in a clone of deepwiki-open, which serves the frontend on http://localhost:3000.',
   connect: {
@@ -168,24 +169,12 @@ async function disconnect(): Promise<void> {
 
 let wikiFrame!: HTMLIFrameElement
 
+// A file/download glyph for the floating copy-.env button.
+const ENV_ICON =
+  '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M4 1.5h5L12.5 5v9A1.5 1.5 0 0 1 11 15.5H4A1.5 1.5 0 0 1 2.5 14V3A1.5 1.5 0 0 1 4 1.5z" fill="none" stroke="currentColor" stroke-linejoin="round"/><path d="M9 1.5V5h3.5" fill="none" stroke="currentColor" stroke-linejoin="round"/></svg>'
+
 function buildWikiUI(mount: HTMLElement): void {
   const wrap = el('div', 'dw-wrap')
-
-  // Helper bar: "Copy .env" (only meaningful if Cate has a reusable provider).
-  const bar = el('div', 'dw-bar')
-  const providers = lastStatus?.cateProviders ?? []
-  bar.appendChild(
-    el(
-      'span',
-      'dw-bar__label',
-      providers.length ? `Cate providers: ${providers.join(', ')}` : 'No Cate provider configured',
-    ),
-  )
-  const copyBtn = el('button', 'cate-btn dw-bar__btn', 'Copy .env') as HTMLButtonElement
-  copyBtn.type = 'button'
-  copyBtn.title = 'Copy a .env derived from Cate\'s provider keys to paste into your DeepWiki instance'
-  copyBtn.addEventListener('click', () => void copyEnv())
-  bar.appendChild(copyBtn)
 
   wikiFrame = el('iframe', 'dw-wiki') as HTMLIFrameElement
   wikiFrame.title = 'DeepWiki'
@@ -193,7 +182,21 @@ function buildWikiUI(mount: HTMLElement): void {
   // Load our own origin root, which the server reverse-proxies to upstream.
   wikiFrame.src = BASE
 
-  wrap.append(bar, wikiFrame)
+  // Floating "Copy .env" control (only meaningful if Cate has a reusable
+  // provider — copyEnv() explains itself via cate.ui.notify either way).
+  const providers = lastStatus?.cateProviders ?? []
+  const copyBtn = el('button', 'cate-overlay-btn') as HTMLButtonElement
+  copyBtn.type = 'button'
+  const glyph = iconNode(ENV_ICON)
+  if (glyph) copyBtn.appendChild(glyph)
+  else copyBtn.textContent = '⧉'
+  copyBtn.setAttribute('aria-label', 'Copy .env for DeepWiki')
+  copyBtn.title =
+    "Copy a .env derived from Cate's provider keys to paste into your DeepWiki instance\n" +
+    (providers.length ? `Cate providers: ${providers.join(', ')}` : 'No Cate provider configured')
+  copyBtn.addEventListener('click', () => void copyEnv())
+
+  wrap.append(wikiFrame, copyBtn)
   mount.appendChild(wrap)
 
   attachIframeGlue()

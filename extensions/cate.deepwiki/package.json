@@ -1,6 +1,6 @@
 {
   "name": "cate.deepwiki",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "DeepWiki (DeepWiki-Open) as a server-backed Cate extension: reverse-proxies a user-run DeepWiki instance and adds Cate-native code-reference links + theming + provider reuse.",
   "scripts": {

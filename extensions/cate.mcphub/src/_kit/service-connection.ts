@@ -16,6 +16,8 @@
 // iframe or native UI. Vanilla + CSP-safe (textContent only, no innerHTML).
 // =============================================================================
 
+import type { CateHost } from './cate-host'
+
 export type ConnState =
   | { kind: 'idle' }
   | { kind: 'provisioning'; message?: string; log?: string }
@@ -39,6 +41,10 @@ export interface ServiceConnectionOptions {
   /** Raw SVG markup for the panel glyph, shown above the name (e.g. the
    *  manifest panel icon). Parsed safely — no scripts run. */
   icon?: string
+  /** URL of the wrapped project's repository (e.g. its GitHub page), rendered
+   *  as a small link under the service name. Clicking opens it in a Cate
+   *  browser panel (`canvas` scope); without that grant it copies the URL. */
+  repo?: string
   /** Shown only inside the collapsed "How to run it?" expander, never inline. */
   description?: string
   /** Present for URL-based "connect to existing" services. */
@@ -47,6 +53,18 @@ export interface ServiceConnectionOptions {
   onRetry?: () => void | Promise<void>
   /** Called once, the first time the widget enters `ready`. */
   onReady?: (mount: HTMLElement) => void
+}
+
+/** Short display label for a repo URL: "owner/name" for GitHub-style paths,
+ *  the bare host+path otherwise. */
+export function repoLabel(url: string): string {
+  try {
+    const u = new URL(url)
+    const path = u.pathname.replace(/^\/+|\/+$/g, '')
+    return path || u.host
+  } catch {
+    return url
+  }
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -61,8 +79,9 @@ function el<K extends keyof HTMLElementTagNameMap>(
 }
 
 /** Parse trusted SVG markup into a node without innerHTML (CSP-safe). Returns
- *  null if the markup doesn't parse to an <svg>. */
-function iconNode(svg: string): SVGElement | null {
+ *  null if the markup doesn't parse to an <svg>. Exported for panels that
+ *  build their own icon controls (e.g. the floating .cate-overlay-btn). */
+export function iconNode(svg: string): SVGElement | null {
   try {
     const doc = new DOMParser().parseFromString(svg, 'image/svg+xml')
     const root = doc.documentElement
@@ -142,6 +161,50 @@ export class ServiceConnection {
       }
     }
     this.card.appendChild(el('div', 'cate-conn__title', this.opts.serviceName))
+    this.renderRepoLink()
+  }
+
+  /** Small "owner/name ↗" link to the wrapped project's repository. The
+   *  sandboxed webview denies window.open and in-place navigation would eat
+   *  the panel, so a click opens the URL in a Cate BROWSER PANEL via the host
+   *  API; if the extension lacks the `canvas` scope, it copies the URL and
+   *  says so inline. */
+  private renderRepoLink(): void {
+    const url = this.opts.repo
+    if (!url) return
+    const a = el('a', 'cate-conn__repo', `${repoLabel(url)} ↗`)
+    a.href = url
+    a.title = url
+    a.addEventListener('click', (e) => {
+      e.preventDefault()
+      void this.openRepo(url, a)
+    })
+    this.card.appendChild(a)
+  }
+
+  private async openRepo(url: string, link: HTMLElement): Promise<void> {
+    const c = (globalThis as { cate?: CateHost }).cate
+    try {
+      const r = (await c?.canvas.createPanel('browser', { url })) as
+        | { error?: string }
+        | null
+        | undefined
+      if (r && typeof r === 'object' && 'error' in r && r.error) throw new Error(r.error)
+      if (!c) throw new Error('no host')
+      return
+    } catch {
+      /* no canvas grant (or no host) — fall through to the clipboard */
+    }
+    const original = link.textContent
+    try {
+      await navigator.clipboard.writeText(url)
+      link.textContent = 'URL copied'
+    } catch {
+      link.textContent = url // last resort: show it, selectable
+    }
+    setTimeout(() => {
+      link.textContent = original
+    }, 1500)
   }
 
   /** A collapsed "How to run it?" expander carrying the description + help, so

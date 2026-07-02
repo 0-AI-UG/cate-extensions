@@ -1,6 +1,6 @@
 {
   "name": "cate.mcphub",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "MCPHub wrapper, a server-backed Cate extension. Embeds the MCPHub dashboard reverse-proxied through a loopback-bound wrapper.",
   "scripts": {

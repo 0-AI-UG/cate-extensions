@@ -64,7 +64,15 @@ export interface CateHost {
   canvas: {
     createPanel(
       type: string,
-      opts?: { position?: unknown; size?: unknown; props?: unknown },
+      opts?: {
+        position?: unknown
+        size?: unknown
+        props?: unknown
+        /** Browser panels: the URL to open. */
+        url?: string
+        /** Editor panels: workspace-relative file to open. */
+        filePath?: string
+      },
     ): Promise<unknown>
   }
   ui: { notify(message: string, level?: 'info' | 'warn' | 'error'): Promise<unknown> }

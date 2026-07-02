@@ -29,6 +29,7 @@ const ICON =
 const conn = new ServiceConnection(document.getElementById('root')!, {
   serviceName: 'MCPHub',
   icon: ICON,
+  repo: 'https://github.com/samanhappy/mcphub',
   description: 'A local MCPHub install is launched and embedded here. The first run may download it.',
   onRetry: () => void start(),
   onReady: (mount) => {

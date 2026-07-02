@@ -67,6 +67,7 @@ const ICON =
 const conn = new ServiceConnection(document.getElementById('root')!, {
   serviceName: 'Sourcebot',
   icon: ICON,
+  repo: 'https://github.com/sourcebot-dev/sourcebot',
   description:
     'Connect to a self-hosted Sourcebot instance you run yourself (Cate does not bundle Sourcebot — its license forbids redistribution).',
   connect: {

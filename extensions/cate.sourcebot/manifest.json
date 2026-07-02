@@ -1,15 +1,29 @@
 {
   "id": "cate.sourcebot",
   "name": "Sourcebot",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Code search and understanding over a self-hosted Sourcebot instance, wired into Cate's editor.",
   "panels": [
-    { "id": "search", "label": "Sourcebot", "defaultSize": { "width": 760, "height": 560 } }
+    {
+      "id": "search",
+      "label": "Sourcebot",
+      "defaultSize": {
+        "width": 760,
+        "height": 560
+      }
+    }
   ],
   "server": {
     "command": "node dist/server.js",
     "readyPath": "/health",
     "portEnv": "PORT"
   },
-  "cateApi": ["storage", "editor.write", "theme", "ui", "workspace.read"]
+  "cateApi": [
+    "storage",
+    "editor.write",
+    "theme",
+    "ui",
+    "workspace.read",
+    "canvas"
+  ]
 }
