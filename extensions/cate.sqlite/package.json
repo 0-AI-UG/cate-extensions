@@ -1,0 +1,24 @@
+{
+  "name": "cate.sqlite",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SQLite viewer, a self-contained server-backed Cate extension. Reads the workspace's SQLite files with a bundled WASM engine (no external install) and serves a browse/query UI, reverse-proxied and loopback-bound.",
+  "scripts": {
+    "build": "npm run build:server && npm run build:panel && node ./copy-static.mjs",
+    "build:server": "esbuild src/server.ts --bundle --platform=node --format=cjs --target=node18 --outfile=dist/server.js",
+    "build:panel": "esbuild src/public/app.ts --bundle --format=iife --outfile=dist/public/app.js",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.browser.json --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "sql.js": "^1.14.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/sql.js": "^1.4.9",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

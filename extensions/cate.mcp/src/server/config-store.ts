@@ -1,6 +1,6 @@
 // =============================================================================
-// On-disk store for <workspace>/.cate/mcp.json. Follows the taskmaster write
-// contract: stat-before-read snapshots, atomic temp+rename writes, and a 409
+// On-disk store for <workspace>/.cate/mcp.json. Write contract:
+// stat-before-read snapshots, atomic temp+rename writes, and a 409
 // when the file changed on disk between snapshot and write (an external writer
 // wins; the caller re-reads). Also hosts the debounced external-edit watcher.
 // =============================================================================

@@ -103,8 +103,8 @@ export class Manager {
   }
 
   /** Re-read mcp.json and hot-apply. On a parse error the error is surfaced and
-   *  running servers are left alone (taskmaster pattern: show the error, keep
-   *  watching for recovery, never make things worse). */
+   *  running servers are left alone (show the error, keep watching for
+   *  recovery, never make things worse). */
   private async reload(): Promise<void> {
     const snap = this.store.read()
     this.initialized = snap.exists

@@ -25,8 +25,7 @@ const EXT_DIR = join(ROOT, 'extensions')
 // upstream component with no Cate chrome to theme; frontendkit/kitchensink are
 // dev references. All three are deliberately excluded.
 const KIT_CONSUMERS = [
-  'cate.taskmaster',
-  'cate.datasette',
+  'cate.sqlite',
   'cate.mcp',
 ]
 

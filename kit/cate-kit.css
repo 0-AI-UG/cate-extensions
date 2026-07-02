@@ -469,8 +469,8 @@ body {
 }
 
 /* ============================================================================
- * Service connection — shared by extensions that wrap an external service
- * (datasette). Rendered by service-connection.ts.
+ * Service connection — shared by extensions that wrap an external service.
+ * Rendered by service-connection.ts.
  * ========================================================================== */
 
 .cate-conn {
@@ -631,7 +631,7 @@ body {
 
 /* --- floating overlay icon button ------------------------------------------ */
 /* Icon-only control pinned to the top-right corner of a full-bleed embedded
-   UI (e.g. Datasette rescan).
+   UI (e.g. a rescan button).
    Translucent until hovered so it doesn't compete with the embed's own chrome;
    stack a second one with .cate-overlay-btn--2nd. */
 .cate-overlay-btn {

@@ -1,7 +1,7 @@
 // =============================================================================
 // One managed MCP server: connection lifecycle, supervision, inventory.
 //
-// Supervision follows the cate.datasette convention: a MONOTONIC GENERATION ID
+// Supervision uses a MONOTONIC GENERATION ID that
 // guards every async step and child/connection event. Each (re)start bumps the
 // generation; handlers capture their run's id and no-op when a newer run owns
 // the state, so a replaced run's late exit/stderr/handshake can never clobber
@@ -146,7 +146,7 @@ export class ManagedConnection {
   prompts: PromptInfo[] = []
   authUrl: string | null = null
 
-  /** Monotonic run id (the datasette convention). */
+  /** Monotonic run id guarding async steps against a superseded run. */
   private generation = 0
   private desired: 'stopped' | 'running' = 'stopped'
   private client: Client | null = null

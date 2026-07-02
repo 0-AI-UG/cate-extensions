@@ -8,7 +8,7 @@ single source of truth.**
 |---|---|
 | `cate-kit.css` | Design tokens (`--cate-*`) + base component classes (`cate-*`): app shell, buttons, inputs, cards, banners, drawer, empty state, spinner, and the service-connection card. |
 | `theme.ts` | `applyTheme()` / `initTheme()` — maps `cate.theme.get()` onto the kit's `--cate-*` tokens. The one canonical theme bridge (replaces per-extension `pick(...)` guesswork). |
-| `service-connection.ts` | `ServiceConnection` — vanilla state-machine widget that gates a content area behind a coherent connection card (provisioning / connecting / connect-form / error / ready). Used by datasette. |
+| `service-connection.ts` | `ServiceConnection` — vanilla state-machine widget that gates a content area behind a coherent connection card (provisioning / connecting / connect-form / error / ready). Used by cate.mcp. |
 | `cate-host.d.ts` | Canonical typings for the injected `cate` host API. Imported for types only; does not augment global scope. |
 
 ## How it ships

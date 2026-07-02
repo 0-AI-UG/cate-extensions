@@ -1,10 +1,10 @@
 // =============================================================================
 // ServiceConnection — shared gating UI for extensions that wrap an external
-// service (datasette provisions one). It owns one honest state machine and
-// renders a coherent connection card over a content area the consumer fills
-// once ready:
+// service (one they provision and run, or connect to). It owns one honest
+// state machine and renders a coherent connection card over a content area the
+// consumer fills once ready:
 //
-//   idle ─▶ provisioning ─▶ ready            (run-for-me: datasette)
+//   idle ─▶ provisioning ─▶ ready            (run-for-me: a provisioned service)
 //                └─▶ error ◀─ retry
 //   needs-connection ─▶ connecting ─▶ ready  (connect-to-existing services)
 //                          └─▶ error ─▶ (edit / retry)

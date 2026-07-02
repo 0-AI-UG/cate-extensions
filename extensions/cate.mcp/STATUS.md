@@ -2,8 +2,8 @@
 
 ## 1. Approach
 
-A **server-backed extension** (`manifest.server`), like cate.taskmaster and for
-the same reason: the manager must read/write `.cate/mcp.json` in the workspace,
+A **server-backed extension** (`manifest.server`): the manager must
+read/write `.cate/mcp.json` in the workspace,
 spawn and supervise child processes, hold outbound MCP connections, and host
 the aggregated `/mcp` endpoint; none of that is possible from the sandboxed
 webview. Cate spawns `node dist/server.js` with `PORT`/`HOST`/`CATE_TOKEN`/
@@ -37,7 +37,7 @@ directly.
   `StdioClientTransport` with `stderr: 'pipe'` (bounded 100-line tail, reset
   per run); remote via `StreamableHTTPClientTransport` with
   `SSEClientTransport` fallback (both attempts reported on failure).
-  Supervision follows the cate.datasette conventions: monotonic generation id
+  Supervision uses a monotonic generation id
   guarding every async step and event, handshake timeout that reaps the stuck
   child, SIGKILL escalation after close, synchronous SIGKILL backstop on
   process exit. Crash auto-restart with capped exponential backoff

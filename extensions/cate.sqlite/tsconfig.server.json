@@ -1,0 +1,13 @@
+{
+  // Node server typecheck. The runnable dist/server.js is produced by esbuild
+  // (build:server bundles sql.js in); this config is typecheck-only (--noEmit).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2020"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "files": ["src/server.ts", "src/db.ts", "src/scan.ts"]
+}

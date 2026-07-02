@@ -1,0 +1,13 @@
+{
+  // Type-check config for the Vitest suite (Node unit + integration tests over
+  // the pure helpers and the sql.js-backed reader in src/db.ts and src/scan.ts).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2020"],
+    "types": ["node", "vitest/globals"],
+    "noEmit": true
+  },
+  "include": ["src/db.ts", "src/scan.ts", "src/db.test.ts", "src/scan.test.ts"]
+}
