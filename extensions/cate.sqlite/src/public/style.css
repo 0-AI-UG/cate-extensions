@@ -274,6 +274,12 @@
   justify-content: center;
   padding: 24px;
 }
+/* `display: flex` above overrides the UA `[hidden] { display: none }` rule, so
+ * the overlay would otherwise stay laid out over the whole panel and swallow
+ * every click even when closed. Re-hide it when the `hidden` attribute is set. */
+.sq-query-overlay[hidden] {
+  display: none;
+}
 .sq-scrim {
   position: absolute;
   inset: 0;
@@ -336,6 +342,10 @@
   border-radius: var(--cate-radius-sm);
   padding: 10px;
   font: var(--cate-mono);
+}
+.sq-query-input:focus {
+  outline: none;
+  border-color: var(--cate-accent);
 }
 .sq-query-actions {
   display: flex;
