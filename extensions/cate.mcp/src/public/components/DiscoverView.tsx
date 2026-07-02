@@ -15,7 +15,7 @@ import {
 } from '../../shared/registry'
 import { registrySearch } from '../api'
 import type { AddPrefill } from './AddEditDrawer'
-import { PlusIcon } from './util'
+import { openUrlInPanel, PlusIcon } from './util'
 
 const RUNNABLE = new Set(['npm', 'pypi', 'oci'])
 
@@ -96,15 +96,7 @@ function RepoLink({ url }: { url: string }) {
   async function open(e: React.MouseEvent): Promise<void> {
     e.preventDefault()
     e.stopPropagation()
-    try {
-      const c = window.cate
-      const r = (await c?.canvas.createPanel('browser', { url })) as { error?: string } | null | undefined
-      if (r && typeof r === 'object' && 'error' in r && r.error) throw new Error(r.error)
-      if (!c) throw new Error('no host')
-      return
-    } catch {
-      /* no canvas grant (or no host) — fall through to the clipboard */
-    }
+    if (await openUrlInPanel(url)) return
     try {
       await navigator.clipboard.writeText(url)
       setLabel('URL copied')

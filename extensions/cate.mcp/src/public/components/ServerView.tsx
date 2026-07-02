@@ -8,7 +8,7 @@ import type { ServerSnapshot } from '../../shared/types'
 import { oauthStart, serverAction, deleteServer, type ServerAction } from '../api'
 import type { HistoryEntry } from './Playground'
 import type { PlayItem } from './PlaygroundDrawer'
-import { CopyIconButton, InlineError, StatusDot, formatUptime, statusWord } from './util'
+import { CopyIconButton, InlineError, StatusDot, copyText, formatUptime, openUrlInPanel, statusWord } from './util'
 
 function AuthBlock({ server }: { server: ServerSnapshot }) {
   const [authUrl, setAuthUrl] = useState<string | null>(server.authUrl)
@@ -43,7 +43,17 @@ function AuthBlock({ server }: { server: ServerSnapshot }) {
       </div>
       {url && (
         <div className="mcp-auth__link">
-          <a className="mcp-authlink" href={url} target="_blank" rel="noreferrer">
+          <a
+            className="mcp-authlink"
+            href={url}
+            title="Open the authorization page in a browser panel"
+            onClick={(e) => {
+              e.preventDefault()
+              void openUrlInPanel(url).then((ok) => {
+                if (!ok) void copyText(url)
+              })
+            }}
+          >
             {url}
           </a>
           <CopyIconButton text={url} title="Copy link" />

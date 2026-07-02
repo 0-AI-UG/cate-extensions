@@ -84,6 +84,22 @@ export function openConfigFile(configPath: string): void {
   }
 }
 
+/** Open a URL in a Cate browser panel (needs the `canvas` scope). The sandboxed
+ *  webview denies window.open and in-place navigation would eat the panel, so
+ *  links route through the host. Returns true when the host opened it, false
+ *  otherwise (no host / no grant / error) so callers can fall back. */
+export async function openUrlInPanel(url: string): Promise<boolean> {
+  try {
+    const c = window.cate
+    if (!c) return false
+    const r = (await c.canvas.createPanel('browser', { url })) as { error?: string } | null | undefined
+    if (r && typeof r === 'object' && 'error' in r && r.error) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
 // --- icons (14px stroke set) -------------------------------------------------
 
 function icon(path: React.ReactNode) {
