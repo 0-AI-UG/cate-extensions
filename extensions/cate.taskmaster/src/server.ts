@@ -27,14 +27,14 @@ import http from 'http'
 import fs from 'fs'
 import path from 'path'
 import {
-  parseBoardText,
+  parseBoard,
   applyTaskPatch,
   addTask,
+  validateTaskPatch,
+  validateNewTask,
   TASKS_RELATIVE_PATH,
   LEGACY_TASKS_RELATIVE_PATH,
   type Board,
-  type TaskPatch,
-  type NewTaskInput,
 } from './shared/taskmaster'
 
 const PORT = Number(process.env.PORT)
@@ -107,8 +107,26 @@ function readBoard(): BoardResult {
       error: err instanceof Error ? err.message : String(err),
     }
   }
-  const board = parseBoardText(text)
-  return { ok: true, initialized: true, board, path: file, mtime: stat.mtimeMs }
+  // A blank file is "initialized but empty", not an error.
+  if (text.trim() === '') {
+    return { ok: true, initialized: true, board: null, path: file, mtime: stat.mtimeMs }
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch (err) {
+    // Corrupt JSON must SURFACE (the client shows it and keeps polling for
+    // recovery), not silently render as an empty board.
+    return {
+      ok: false,
+      initialized: true,
+      board: null,
+      path: file,
+      mtime: stat.mtimeMs,
+      error: `tasks.json is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+    }
+  }
+  return { ok: true, initialized: true, board: parseBoard(parsed), path: file, mtime: stat.mtimeMs }
 }
 
 // --- task writes -------------------------------------------------------------
@@ -119,29 +137,70 @@ function readBoard(): BoardResult {
 // file directly. We always write back to the file we read so a project on the
 // legacy path stays on it, and create the canonical path + dirs for a first task.
 
-/** Current raw file text, or '' when no tasks file exists yet. */
-function readRawText(): string {
+/** What we read before a mutation: the file, its text, and its mtime at read
+ *  time so the write can detect a concurrent external edit. */
+interface TasksSnapshot {
+  file: string
+  /** '' when the file doesn't exist yet. */
+  text: string
+  /** null when the file doesn't exist yet. */
+  mtime: number | null
+}
+
+/** Read the tasks file for a mutation. Stat BEFORE read so a swap between the
+ *  two shows up as an mtime mismatch at write time (fail safe, not clobber). */
+function readTasksSnapshot(): { ok: true; snap: TasksSnapshot } | { ok: false; error: string } {
   const file = resolveTasksFile()
-  if (!file) return ''
+  if (!file) return { ok: false, error: 'no-workspace' }
+  let mtime: number | null = null
   try {
-    return fs.readFileSync(file, 'utf8')
+    mtime = fs.statSync(file).mtimeMs
   } catch {
-    return ''
+    return { ok: true, snap: { file, text: '', mtime: null } } // not created yet
+  }
+  try {
+    return { ok: true, snap: { file, text: fs.readFileSync(file, 'utf8'), mtime } }
+  } catch (err) {
+    // Exists but unreadable: never treat as empty, a write would clobber it.
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
 }
 
-/** Atomically write the tasks file (temp + rename), creating parent dirs. */
-function writeTasksFile(text: string): { ok: true; path: string } | { ok: false; error: string } {
-  const file = resolveTasksFile()
-  if (!file) return { ok: false, error: 'no-workspace' }
+/** Atomically write the tasks file (temp + rename), creating parent dirs.
+ *  Refuses (409) when the file changed on disk after `snap` was taken — an
+ *  external writer (Task Master CLI, agent) wins; the client re-reads. */
+function writeTasksFile(
+  snap: TasksSnapshot,
+  text: string,
+): { ok: true; path: string } | { ok: false; status: number; error: string } {
+  let mtimeNow: number | null = null
   try {
-    fs.mkdirSync(path.dirname(file), { recursive: true })
-    const tmp = `${file}.cate-${process.pid}.tmp`
+    mtimeNow = fs.statSync(snap.file).mtimeMs
+  } catch {
+    mtimeNow = null
+  }
+  if (mtimeNow !== snap.mtime) {
+    return { ok: false, status: 409, error: 'tasks.json changed on disk while saving — reloaded, try again' }
+  }
+  try {
+    fs.mkdirSync(path.dirname(snap.file), { recursive: true })
+    const tmp = `${snap.file}.cate-${process.pid}.tmp`
     fs.writeFileSync(tmp, text, 'utf8')
-    fs.renameSync(tmp, file)
-    return { ok: true, path: file }
+    fs.renameSync(tmp, snap.file)
+    return { ok: true, path: snap.file }
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    return { ok: false, status: 500, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** True when text parses as JSON (used to tell "task not found" apart from
+ *  "file is corrupt" on the write path). */
+function isValidJson(text: string): boolean {
+  try {
+    JSON.parse(text)
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -240,47 +299,79 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
 
   // Patch one task's fields (status change from drag, inline edits).
   if (pathname === '/api/task/patch' && req.method === 'POST') {
-    let body: { tag?: string; id?: number; patch?: TaskPatch }
+    let body: Record<string, unknown>
     try {
-      body = JSON.parse(await readBody(req))
+      const parsed: unknown = JSON.parse(await readBody(req))
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error()
+      body = parsed as Record<string, unknown>
     } catch {
       sendJson(res, 400, { ok: false, error: 'invalid JSON body' })
       return
     }
-    if (!body.tag || typeof body.id !== 'number' || !body.patch) {
-      sendJson(res, 400, { ok: false, error: 'tag, id and patch are required' })
+    if (typeof body.tag !== 'string' || body.tag === '') {
+      sendJson(res, 400, { ok: false, error: 'tag must be a non-empty string' })
       return
     }
-    const next = applyTaskPatch(readRawText(), body.tag, body.id, body.patch)
+    if (typeof body.id !== 'number' || !Number.isFinite(body.id)) {
+      sendJson(res, 400, { ok: false, error: 'id must be a number' })
+      return
+    }
+    const valid = validateTaskPatch(body.patch)
+    if (!valid.ok) {
+      sendJson(res, 400, { ok: false, error: valid.error })
+      return
+    }
+    const read = readTasksSnapshot()
+    if (!read.ok) {
+      sendJson(res, 500, { ok: false, error: read.error })
+      return
+    }
+    const next = applyTaskPatch(read.snap.text, body.tag, body.id, valid.patch)
     if (next === null) {
-      sendJson(res, 404, { ok: false, error: 'task not found' })
+      if (read.snap.text.trim() !== '' && !isValidJson(read.snap.text)) {
+        sendJson(res, 409, { ok: false, error: 'tasks.json is not valid JSON; fix the file before editing' })
+      } else {
+        sendJson(res, 404, { ok: false, error: 'task not found' })
+      }
       return
     }
-    const result = writeTasksFile(next)
-    sendJson(res, result.ok ? 200 : 500, result)
+    const result = writeTasksFile(read.snap, next)
+    sendJson(res, result.ok ? 200 : result.status, result)
     return
   }
 
   // Create a task (also initializes the file for a first task).
   if (pathname === '/api/task' && req.method === 'POST') {
-    let body: { tag?: string; task?: NewTaskInput }
+    let body: Record<string, unknown>
     try {
-      body = JSON.parse(await readBody(req))
+      const parsed: unknown = JSON.parse(await readBody(req))
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error()
+      body = parsed as Record<string, unknown>
     } catch {
       sendJson(res, 400, { ok: false, error: 'invalid JSON body' })
       return
     }
-    if (!body.tag || !body.task || !body.task.title?.trim()) {
-      sendJson(res, 400, { ok: false, error: 'tag and task.title are required' })
+    if (typeof body.tag !== 'string' || body.tag === '') {
+      sendJson(res, 400, { ok: false, error: 'tag must be a non-empty string' })
       return
     }
-    const created = addTask(readRawText(), body.tag, body.task)
+    const valid = validateNewTask(body.task)
+    if (!valid.ok) {
+      sendJson(res, 400, { ok: false, error: valid.error })
+      return
+    }
+    const read = readTasksSnapshot()
+    if (!read.ok) {
+      sendJson(res, 500, { ok: false, error: read.error })
+      return
+    }
+    const created = addTask(read.snap.text, body.tag, valid.task)
     if (created === null) {
-      sendJson(res, 400, { ok: false, error: 'could not add task' })
+      sendJson(res, 409, { ok: false, error: 'tasks.json is not valid JSON; fix the file before editing' })
       return
     }
-    const result = writeTasksFile(created.text)
-    sendJson(res, result.ok ? 200 : 500, result.ok ? { ok: true, id: created.id } : result)
+    const result = writeTasksFile(read.snap, created.text)
+    sendJson(res, result.ok ? 200 : result.status, result.ok ? { ok: true, id: created.id } : result)
     return
   }
 

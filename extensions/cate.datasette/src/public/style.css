@@ -16,3 +16,21 @@
   border: 0;
   background: var(--cate-bg);
 }
+
+/* Banner shown over the explorer when the workspace scan found no SQLite files
+ * (Datasette is up, but on an empty in-memory database). Click-through so it
+ * never blocks the UI underneath; hidden once a rescan finds databases. */
+.dst-empty {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 6px 12px;
+  border: 1px solid var(--cate-border);
+  border-radius: var(--cate-radius-sm);
+  background: var(--cate-bg-card);
+  color: var(--cate-muted);
+  font: var(--cate-font);
+  pointer-events: none;
+}

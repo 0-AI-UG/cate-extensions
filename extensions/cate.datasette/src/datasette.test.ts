@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 import {
   parseDatasetteCmd,
   resolveLaunch,
@@ -6,6 +9,7 @@ import {
   baseUrlFor,
   childArgs,
   childEnv,
+  spawnDatasette,
   DATASETTE_SUBPATH,
 } from './datasette'
 
@@ -106,6 +110,41 @@ describe('childArgs', () => {
 describe('baseUrlFor', () => {
   it('appends the db mount to the public base', () => {
     expect(baseUrlFor('/ext/tok/')).toBe('/ext/tok/db/')
+  })
+})
+
+describe('spawnDatasette', () => {
+  it('throws an actionable install hint when no runner resolves', () => {
+    // The no-runner message is the panel's error card verbatim — it must name
+    // concrete installs and the DATASETTE_CMD escape hatch, not a spawn error.
+    expect(() => spawnDatasette([], 4321, '/ext/tok/', {}, null)).toThrow(
+      /pip install datasette[\s\S]*DATASETTE_CMD/,
+    )
+  })
+
+  it('pipes stderr and reports the exit of an immediately-failing command', async () => {
+    // Simulate a broken install: DATASETTE_CMD pointing at a script that writes
+    // to stderr and dies at once (what the wrapper's early-exit path consumes).
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cate-datasette-fake-'))
+    const script = path.join(dir, 'fail.js')
+    fs.writeFileSync(script, "process.stderr.write('datasette: boom\\n'); process.exit(3)\n")
+    try {
+      const env = { PATH: process.env.PATH, DATASETTE_CMD: `${process.execPath} ${script}` }
+      const { child, spec } = spawnDatasette([], 4321, '/ext/tok/', env)
+      expect(spec.via).toBe('env')
+
+      let stderr = ''
+      child.stderr?.on('data', (b: Buffer) => {
+        stderr += b.toString('utf8')
+      })
+      const code = await new Promise<number | null>((resolve) => {
+        child.on('exit', (c) => resolve(c))
+      })
+      expect(code).toBe(3)
+      expect(stderr).toContain('datasette: boom')
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

@@ -1,7 +1,7 @@
 {
   "id": "cate.datasette",
   "name": "Datasette",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "description": "Explore the SQLite databases in your workspace with Datasette (datasette.io), launched locally and embedded as a panel on the Cate canvas. Resolves a Datasette install on this machine (datasette on PATH, uvx, or pipx) and points it at the .db/.sqlite files found in the workspace.",
   "panels": [
     {

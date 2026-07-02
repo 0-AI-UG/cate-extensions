@@ -23,9 +23,12 @@ package. The wrapper resolves an install from the user's machine
   emits — links, assets, redirects — resolves through Cate's proxy untouched.
 - `/__datasette/restart` stops the child and relaunches with a fresh workspace
   scan (panel "Rescan" button).
-- Supervision mirrors mcphub: stderr tail captured for the error card,
-  early-exit detection during startup, SIGTERM→SIGKILL teardown, restart via
-  the panel's Retry.
+- Supervision mirrors mcphub: stderr tail captured for the error card (reset
+  per run), early-exit detection during startup, SIGTERM→SIGKILL teardown,
+  restart via the panel's Retry. Each (re)start is generation-numbered so a
+  replaced child's late exit/output can't clobber the run that superseded it;
+  a readiness-timeout child is reaped before the error is reported; a
+  process-exit hook SIGKILLs any surviving child on abnormal wrapper exit.
 
 ## Verified vs. assumed
 

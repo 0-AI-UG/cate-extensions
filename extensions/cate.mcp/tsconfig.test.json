@@ -1,0 +1,17 @@
+{
+  // Typecheck config for the vitest suite (tests run in Node and import both
+  // shared and server modules).
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2020"],
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "include": ["src/server/**/*.ts", "src/shared/**/*.ts", "src/test/**/*.ts"]
+}

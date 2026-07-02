@@ -72,6 +72,15 @@ body {
   color: #ffb4b4;
   font-size: 12px;
 }
+.dropzone-hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.dropzone-hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
 
 /* --- drag overlay --------------------------------------------------------- */
 
@@ -131,6 +140,19 @@ body {
   flex-direction: column;
   gap: 12px;
 }
+
+/* Long sessions render capped to the most recent turns; this reveals the rest. */
+.show-earlier {
+  align-self: center;
+  background: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 3px 10px;
+  color: var(--fg-dim);
+  font-size: 11px;
+  cursor: pointer;
+}
+.show-earlier:hover { color: var(--fg); }
 
 /* --- rows / bubbles ------------------------------------------------------- */
 

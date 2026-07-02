@@ -93,12 +93,13 @@ because it physically cannot reach the file.
 
 **Stubbed / not done (and why):**
 
-- **No writes back to Task Master.** The panel is read-only; it does not change
-  task status or edit `tasks.json`. Status changes would mean either editing the
-  JSON (risking clobbering concurrent CLI writes) or shelling out to
-  `task-master set-status`, which needs the CLI present. Deferred deliberately;
-  the board reflects whatever the CLI / agent writes.
-- **Drag-and-drop between columns** is not implemented (would imply writes).
+- ~~No writes back to Task Master~~ **Superseded: the panel is read-write.**
+  `/api/board/patch-task` and `/api/board/create-task` edit `tasks.json`
+  directly (both legacy-flat and tagged schemas), preserving unknown fields
+  byte-for-byte. Writes are atomic (temp + rename) and conflict-checked: if the
+  file's mtime changed since it was read, the server returns 409 instead of
+  clobbering concurrent CLI/agent writes. Input is validated (400 on bad
+  status/types); drag-and-drop between columns patches task status.
 - **File-reference detection is heuristic** — Task Master has no formal "file"
   field, so refs are regex-extracted from a task's text (path-with-slash +
   known extension, optional `:line`). Good enough to be useful; it can miss
@@ -114,7 +115,7 @@ From this directory:
 ```bash
 npm install
 npm run build      # build:panel (vite -> dist/public) + build:server (tsc -> dist/server.js, dist/shared/)
-npm test           # vitest run (17 tests)
+npm test           # vitest run
 npm run typecheck  # browser + server tsconfigs, no emit
 ```
 

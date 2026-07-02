@@ -20,6 +20,33 @@
   word-break: break-all;
 }
 
+/* --- error states ---------------------------------------------------------- */
+
+/* Full-panel state for an unreadable tasks.json (keeps polling to recover). */
+.tm-errorstate {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: var(--cate-gap);
+  text-align: center;
+}
+.tm-errorstate .cate-banner {
+  max-width: 560px;
+  border: 1px solid var(--cate-border);
+  border-radius: var(--cate-radius-sm);
+  word-break: break-word;
+}
+
+/* Inline failure banner inside a drawer (agent / save errors). */
+.tm-drawer__error {
+  margin: 0;
+  border-top: 1px solid var(--cate-border);
+  word-break: break-word;
+}
+
 /* --- board ---------------------------------------------------------------- */
 
 .tm-board {
@@ -81,7 +108,8 @@
 .tm-card {
   text-align: left;
   width: 100%;
-  background: var(--cate-bg-card);
+  /* Root surface on the darker column well, so cards read as raised. */
+  background: var(--cate-bg);
   border: 1px solid var(--cate-border);
   border-radius: var(--cate-radius-sm);
   padding: 10px;
@@ -93,7 +121,7 @@
   font: inherit;
 }
 .tm-card:hover {
-  border-color: var(--cate-accent);
+  border-color: color-mix(in srgb, var(--cate-accent) 50%, transparent);
 }
 .tm-card:active {
   cursor: grabbing;
@@ -116,12 +144,10 @@
   flex-wrap: wrap;
   gap: 6px;
 }
+/* Bare colored 11px word (Cate status idiom: no outlined pills). */
 .tm-prio {
   font-size: 11px;
-  border-radius: 999px;
-  padding: 1px 8px;
   margin-left: auto;
-  border: 1px solid var(--cate-border);
 }
 .tm-prio--high {
   color: var(--cate-danger);
@@ -177,12 +203,14 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+/* Section header = the kit grouplabel idiom (agent section label). */
 .tm-detail h4 {
   margin: 0 0 6px;
-  color: var(--cate-muted);
-  font-size: 11px;
+  color: color-mix(in srgb, var(--cate-muted) 70%, transparent);
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 .tm-detail section {
   border-top: 1px solid var(--cate-border);
@@ -192,9 +220,13 @@
   margin: 0;
   white-space: pre-wrap;
 }
+/* Status = bare dot + 12px secondary word. */
 .tm-statuspill {
-  border: none;
-  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--cate-fg-secondary);
 }
 .tm-subs,
 .tm-files {

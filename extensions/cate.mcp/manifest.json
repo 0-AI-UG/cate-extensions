@@ -1,0 +1,28 @@
+{
+  "id": "cate.mcp",
+  "name": "MCP Servers",
+  "version": "1.0.1",
+  "description": "Native MCP server manager. Configure stdio and remote MCP servers in .cate/mcp.json, supervise them with health checks and auto-restart, browse their tools/resources/prompts, invoke tools from a playground, discover servers in the official MCP registry, and expose everything through one aggregated MCP endpoint any client can connect to.",
+  "panels": [
+    {
+      "id": "manager",
+      "label": "MCP Servers",
+      "icon": "<svg viewBox=\"0 0 16 16\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M5.5 1.5v3M10.5 1.5v3\" stroke=\"currentColor\" fill=\"none\"/><path d=\"M3.5 4.5h9v2.5a4.5 4.5 0 0 1-9 0z\" fill=\"none\" stroke=\"currentColor\"/><path d=\"M8 11.5v1.5a1.5 1.5 0 0 1-1.5 1.5h-3\" stroke=\"currentColor\" fill=\"none\"/></svg>",
+      "defaultSize": {
+        "width": 960,
+        "height": 680
+      }
+    }
+  ],
+  "server": {
+    "command": "node dist/server.js",
+    "readyPath": "/health",
+    "portEnv": "PORT"
+  },
+  "cateApi": [
+    "theme",
+    "ui",
+    "storage",
+    "editor.write"
+  ]
+}

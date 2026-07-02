@@ -83,15 +83,21 @@ const KNOWN_STATUSES: ReadonlySet<string> = new Set([
   'blocked',
 ])
 
-/** Coerce an untrusted status string to a known TaskStatus; default pending. */
+/** Strict status coercion for WRITE input: maps known aliases, returns null for
+ *  anything unrecognized so the API can reject it instead of persisting junk. */
+export function coerceStatusInput(raw: unknown): TaskStatus | null {
+  if (typeof raw !== 'string') return null
+  let s = raw.trim().toLowerCase()
+  if (s === 'completed') s = 'done'
+  if (s === 'in_progress' || s === 'inprogress' || s === 'in progress') s = 'in-progress'
+  if (s === 'canceled') s = 'cancelled'
+  return KNOWN_STATUSES.has(s) ? (s as TaskStatus) : null
+}
+
+/** Coerce an untrusted status string to a known TaskStatus; default pending.
+ *  Forgiving on purpose — right for DISPLAY, wrong for writes (see above). */
 export function normalizeStatus(raw: unknown): TaskStatus {
-  if (typeof raw !== 'string') return 'pending'
-  const s = raw.trim().toLowerCase()
-  if (s === 'completed') return 'done'
-  if (s === 'in_progress' || s === 'inprogress' || s === 'in progress') return 'in-progress'
-  if (s === 'canceled') return 'cancelled'
-  if (KNOWN_STATUSES.has(s)) return s as TaskStatus
-  return 'pending'
+  return coerceStatusInput(raw) ?? 'pending'
 }
 
 /** The kanban columns we render, in display order, with their member statuses. */
@@ -303,6 +309,58 @@ export interface NewTaskInput {
   details?: string
   testStrategy?: string
   dependencies?: number[]
+}
+
+/** Keys of TaskPatch that hold plain strings (title validated separately). */
+const STRING_PATCH_KEYS = ['title', 'description', 'priority', 'details', 'testStrategy'] as const
+
+/**
+ * Validate an untrusted `patch` object from the write API. Builds a clean
+ * TaskPatch from KNOWN keys only (unknown keys are dropped, never written) and
+ * rejects wrong types, empty titles, and unknown status values with a
+ * human-readable error the server can return as a 400. Never throws.
+ */
+export function validateTaskPatch(
+  raw: unknown,
+): { ok: true; patch: TaskPatch } | { ok: false; error: string } {
+  if (!isObject(raw)) return { ok: false, error: 'patch must be an object' }
+  const patch: TaskPatch = {}
+  for (const key of STRING_PATCH_KEYS) {
+    const v = raw[key]
+    if (v === undefined) continue
+    if (typeof v !== 'string') return { ok: false, error: `${key} must be a string` }
+    patch[key] = v
+  }
+  if (patch.title !== undefined && patch.title.trim() === '') {
+    return { ok: false, error: 'title must not be empty' }
+  }
+  if (raw.status !== undefined) {
+    const status = coerceStatusInput(raw.status)
+    if (status === null) return { ok: false, error: `invalid status: ${JSON.stringify(raw.status)}` }
+    patch.status = status
+  }
+  if (raw.dependencies !== undefined) {
+    const deps = raw.dependencies
+    if (!Array.isArray(deps) || deps.some((d) => typeof d !== 'number' || !Number.isFinite(d))) {
+      return { ok: false, error: 'dependencies must be an array of numbers' }
+    }
+    patch.dependencies = deps as number[]
+  }
+  return { ok: true, patch }
+}
+
+/** Validate an untrusted new-task payload: same field rules as a patch, plus a
+ *  non-empty title is required. */
+export function validateNewTask(
+  raw: unknown,
+): { ok: true; task: NewTaskInput } | { ok: false; error: string } {
+  const v = validateTaskPatch(raw)
+  if (!v.ok) return v
+  const title = v.patch.title
+  if (title === undefined || title.trim() === '') {
+    return { ok: false, error: 'task.title is required' }
+  }
+  return { ok: true, task: { ...v.patch, title } }
 }
 
 function serialize(parsed: unknown): string {

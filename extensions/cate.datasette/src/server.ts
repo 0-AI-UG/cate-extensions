@@ -27,6 +27,7 @@
 import http from 'http'
 import fs from 'fs'
 import path from 'path'
+import { ChildProcess } from 'child_process'
 import {
   spawnDatasette,
   resolveLaunch,
@@ -72,6 +73,12 @@ const ds: ChildState = {
 
 let starting: Promise<void> | null = null
 
+/** Monotonic run id. Each (re)start bumps it; stopChild() bumps it too. Event
+ *  handlers and post-await steps capture their run's id and no-op when a newer
+ *  run owns the state, so a replaced child's late exit/output can never clobber
+ *  the run that superseded it (the retry/rescan race). */
+let generation = 0
+
 function recordStderr(line: string): void {
   for (const part of line.split(/\r?\n/)) {
     const trimmed = part.trimEnd()
@@ -89,14 +96,17 @@ function ensureChild(publicBase: string): Promise<void> {
   if (starting) return starting
   if (ds.status === 'ready') stopChild() // base changed — relaunch below
 
+  const gen = ++generation
   starting = (async () => {
     ds.status = 'starting'
     ds.error = null
     ds.publicBase = publicBase
+    ds.stderrTail = [] // this run's log, not the previous failure's
     try {
       // Re-scan on every (re)start so a restart picks up newly created files.
       ds.dbFiles = WORKSPACE_ROOT ? findSqliteFiles(WORKSPACE_ROOT) : []
       const internalPort = await findFreePort()
+      if (gen !== generation) return // stopped/superseded while acquiring the port
       const proc = spawnDatasette(ds.dbFiles, internalPort, publicBase)
       ds.proc = proc
       ds.internalPort = internalPort
@@ -109,22 +119,28 @@ function ensureChild(publicBase: string): Promise<void> {
         died = () => resolve(false)
       })
 
-      proc.child.stderr?.on('data', (b: Buffer) => recordStderr(b.toString('utf8')))
-      proc.child.stdout?.on('data', (b: Buffer) => recordStderr(b.toString('utf8')))
+      proc.child.stderr?.on('data', (b: Buffer) => {
+        if (gen === generation) recordStderr(b.toString('utf8'))
+      })
+      proc.child.stdout?.on('data', (b: Buffer) => {
+        if (gen === generation) recordStderr(b.toString('utf8'))
+      })
       proc.child.on('exit', (code, signal) => {
+        died?.()
+        if (gen !== generation) return // a replaced child exiting is expected
         if (ds.status !== 'error') {
           ds.status = 'error'
           ds.error = `Datasette exited (code=${code ?? 'null'}, signal=${signal ?? 'null'})`
         }
         ds.proc = null
-        starting = null
-        died?.()
       })
       proc.child.on('error', (err) => {
-        ds.status = 'error'
-        ds.error = `Failed to launch Datasette: ${err.message}`
-        starting = null
         died?.()
+        if (gen !== generation) return
+        ds.status = 'error'
+        ds.error =
+          `Failed to launch Datasette via ${proc.spec.via} (${proc.spec.command}): ${err.message}` +
+          (proc.spec.via === 'env' ? ' — check DATASETTE_CMD.' : '')
       })
 
       // Generous window: a first `uvx datasette` / `pipx run datasette` also
@@ -133,13 +149,18 @@ function ensureChild(publicBase: string): Promise<void> {
         waitForReady(internalPort, { timeoutMs: 90000, path: baseUrlFor(publicBase) }),
         earlyExit,
       ])
+      if (gen !== generation) return // superseded mid-wait; the new run owns ds
       if (!ready) {
         // A child exit/error handler may have already set a precise message; only
         // fall back to the generic timeout text if nothing did. (Checking
         // ds.error rather than ds.status sidesteps TS's stale narrowing of the
-        // status literal set at the top of start().)
+        // status literal set at the top of start().) Setting status BEFORE the
+        // kill keeps the SIGTERM-induced exit handler from rewriting the message.
         ds.status = 'error'
         if (!ds.error) ds.error = 'Datasette did not become ready within 90s'
+        killChild(ds.proc?.child) // readiness timeout: reap the stuck child so a retry can't stack a second one
+        ds.proc = null
+        ds.internalPort = null
         return
       }
       ds.status = 'ready'
@@ -147,22 +168,16 @@ function ensureChild(publicBase: string): Promise<void> {
       ds.status = 'error'
       ds.error = err instanceof Error ? err.message : String(err)
     } finally {
-      // Clear the in-flight latch unless we're still mid-start, so a later retry
-      // can re-run. `ds.status` is mutated across awaits/handlers; compare via a
-      // widened local so TS doesn't narrow against the 'starting' set above.
-      const settled = ds.status as string
-      if (settled !== 'starting') starting = null
+      // Clear the in-flight latch unless a newer run owns it by now.
+      if (gen === generation) starting = null
     }
   })()
 
   return starting
 }
 
-function stopChild(): void {
-  const child = ds.proc?.child
-  ds.status = 'idle'
-  ds.proc = null
-  ds.internalPort = null
+/** SIGTERM the child, escalating to SIGKILL after 3s if it lingers. */
+function killChild(child: ChildProcess | null | undefined): void {
   if (!child) return
   try {
     child.kill('SIGTERM')
@@ -178,6 +193,16 @@ function stopChild(): void {
   }
 }
 
+function stopChild(): void {
+  generation++ // orphan any in-flight start and the old child's events
+  starting = null
+  const child = ds.proc?.child
+  ds.status = 'idle'
+  ds.proc = null
+  ds.internalPort = null
+  killChild(child)
+}
+
 process.on('SIGTERM', () => {
   stopChild()
   process.exit(0)
@@ -185,6 +210,16 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   stopChild()
   process.exit(0)
+})
+// Last-resort reap for exits that don't go through the signal handlers (crash,
+// natural exit). 'exit' runs synchronously and timers never fire after it, so
+// SIGKILL directly rather than the graceful TERM→KILL escalation.
+process.on('exit', () => {
+  try {
+    ds.proc?.child.kill('SIGKILL')
+  } catch {
+    /* already gone */
+  }
 })
 
 // --- auth + static shell -------------------------------------------------------

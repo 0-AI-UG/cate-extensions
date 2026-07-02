@@ -66,5 +66,10 @@ export function parseSession(text: string): Conversation {
   // Uniform post-processing: fold tool results into their call cards, collapse
   // injected-context turns, and title from the first real user line.
   const messages = reclassifyContextNoise(pairToolResults(conversation.messages))
+  // A recognized format can still yield zero turns (e.g. a file of pure
+  // bookkeeping lines). Surface that as an error rather than a blank panel.
+  if (messages.length === 0) {
+    throw new Error('No conversation turns found — the file parsed, but contains no chat messages.')
+  }
   return { ...conversation, messages, title: deriveTitle(messages) ?? conversation.title }
 }

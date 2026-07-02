@@ -53,6 +53,9 @@ const conn = new ServiceConnection(document.getElementById('root')!, {
 
 let notifiedError = false
 let pollTimer: ReturnType<typeof setTimeout> | null = null
+// Numbered poll chains: each control() starts a new chain and orphans the old
+// one, so a stale in-flight status fetch can never repaint over a newer state.
+let pollGen = 0
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -110,6 +113,7 @@ function applyStatus(s: WrapperStatus): boolean {
     conn.setState({ kind: 'ready' })
     rememberStatus('ready')
     updateRescanTooltip()
+    updateEmptyNotice()
     return true
   }
   if (s.status === 'error') {
@@ -120,23 +124,37 @@ function applyStatus(s: WrapperStatus): boolean {
   return false
 }
 
-async function poll(): Promise<void> {
+async function poll(gen: number): Promise<void> {
   let s: WrapperStatus
   try {
     s = await fetchStatus()
   } catch (err) {
+    if (gen !== pollGen) return
     showError({ status: 'error', error: 'Lost contact with the wrapper: ' + String(err) })
     return
   }
+  if (gen !== pollGen) return // a newer chain owns the UI now
   if (!applyStatus(s)) {
-    pollTimer = setTimeout(() => void poll(), 600)
+    pollTimer = setTimeout(() => void poll(gen), 600)
   }
+}
+
+/** Start a fresh poll chain (cancelling any previous one); returns its id. */
+function startPolling(delayMs: number): number {
+  const gen = ++pollGen
+  if (pollTimer) clearTimeout(pollTimer)
+  pollTimer = setTimeout(() => void poll(gen), delayMs)
+  return gen
 }
 
 async function control(endpoint: 'start' | 'restart'): Promise<void> {
   notifiedError = false
   conn.setState({ kind: 'provisioning' })
   rememberStatus('starting')
+  // The start request blocks until Datasette is up (or failed) — poll while it
+  // is in flight so the card shows live status and the captured install log
+  // (a first uvx/pipx run downloads Datasette) instead of a silent spinner.
+  const gen = startPolling(400)
   try {
     const res = await fetch(BASE + '__datasette/' + endpoint, {
       method: 'POST',
@@ -144,13 +162,13 @@ async function control(endpoint: 'start' | 'restart'): Promise<void> {
       body: JSON.stringify({ publicBase: BASE }),
     })
     const s = (await res.json()) as WrapperStatus
+    if (gen !== pollGen) return // a newer control() superseded this one
+    pollGen++ // retire the in-flight chain; this response is authoritative
     if (pollTimer) clearTimeout(pollTimer)
-    if (applyStatus(s)) return
+    if (!applyStatus(s)) startPolling(600) // still starting (rare) — keep watching
   } catch {
-    /* poll() will report the failure */
+    /* leave the poll chain running; it will surface the failure */
   }
-  if (pollTimer) clearTimeout(pollTimer)
-  void poll()
 }
 
 function start(): Promise<void> {
@@ -161,6 +179,7 @@ function start(): Promise<void> {
 
 let frame: HTMLIFrameElement | null = null
 let rescanBtn: HTMLButtonElement | null = null
+let emptyNote: HTMLElement | null = null
 
 // A circular-arrows refresh glyph for the floating Rescan button.
 const RESCAN_ICON =
@@ -180,6 +199,13 @@ function updateRescanTooltip(): void {
   }
 }
 
+/** A zero-databases workspace still gets a working Datasette (in-memory), but
+ *  an unexplained empty UI reads as broken — show a banner saying why, and
+ *  what to do about it. Hidden as soon as a (re)scan finds databases. */
+function updateEmptyNotice(): void {
+  if (emptyNote) emptyNote.hidden = (lastStatus?.dbCount ?? 0) > 0
+}
+
 function buildExplorerUI(mount: HTMLElement): void {
   const wrap = el('div', 'dst-wrap')
 
@@ -197,7 +223,15 @@ function buildExplorerUI(mount: HTMLElement): void {
   rescanBtn.addEventListener('click', () => void rescanAndReload())
   updateRescanTooltip()
 
-  wrap.append(frame, rescanBtn)
+  emptyNote = el(
+    'div',
+    'dst-empty',
+    'No SQLite files found in this workspace — Datasette is running on an empty ' +
+      'in-memory database. Add a .db / .sqlite file and hit Rescan.',
+  )
+  emptyNote.hidden = true
+
+  wrap.append(frame, emptyNote, rescanBtn)
   mount.appendChild(wrap)
 
   cate?.panel.setTitle('Datasette').catch(() => {})

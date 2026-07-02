@@ -158,3 +158,58 @@ describe('generic + errors', () => {
     expect(() => parseSession('not json at all')).toThrow(/Unrecognized session file/)
   })
 })
+
+describe('robustness', () => {
+  it('skips malformed JSONL lines mid-file instead of aborting the session', () => {
+    // A truncated write and plain garbage land between two valid Claude turns.
+    const text = [
+      JSON.stringify({ type: 'user', message: { role: 'user', content: 'first' } }),
+      '{"type":"assistant","message":{"role":"assist', // partially-written line
+      'not json at all %%%',
+      JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'reply' }] } }),
+    ].join('\n')
+    const c = parseSession(text)
+    expect(c.source).toBe('claude')
+    expect(c.messages.map((m) => m.role)).toEqual(['user', 'assistant'])
+  })
+
+  it('renders a sane fallback for unknown roles and block types, never throws', () => {
+    const c = parseSession(jsonl([
+      { type: 'session', version: 3, id: 'x', cwd: '/repo' },
+      // Unknown role → treated as user rather than dropped.
+      { type: 'message', message: { role: 'critic', content: [{ type: 'text', text: 'hm' }] } },
+      { type: 'message', message: { role: 'assistant', content: [
+        { type: 'hologram', data: 123 }, // unknown block, no text → skipped
+        { type: 'server_tool_use', text: 'searched the web' }, // unknown block with text → kept as text
+        { type: 'text', text: 'done' },
+      ] } },
+    ]))
+    expect(c.messages[0].role).toBe('user')
+    expect(c.messages[1].parts.map((p) => p.kind)).toEqual(['text', 'text'])
+    expect(c.messages[1].parts[0]).toMatchObject({ kind: 'text', text: 'searched the web' })
+  })
+
+  it('ignores unknown codex response_item payload types', () => {
+    const c = parseSession(jsonl([
+      { timestamp: 't0', type: 'session_meta', payload: { id: 'x', cwd: '/repo' } },
+      { timestamp: 't1', type: 'response_item', payload: { type: 'ghost_item', stuff: true } },
+      { timestamp: 't2', type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] } },
+    ]))
+    expect(c.source).toBe('codex')
+    expect(c.messages.map((m) => m.role)).toEqual(['user'])
+  })
+
+  it('throws a friendly error when a recognized file yields no conversation turns', () => {
+    // All-bookkeeping Claude file: detection succeeds but every turn is skipped.
+    const onlyMeta = jsonl([
+      { type: 'mode', mode: 'normal' },
+      { type: 'user', isMeta: true, message: { role: 'user', content: 'caveat' } },
+    ])
+    expect(() => parseSession(onlyMeta)).toThrow(/No conversation turns found/)
+  })
+
+  it('rejects non-session JSON (e.g. a package.json) with the supported-formats message', () => {
+    expect(() => parseSession(JSON.stringify({ name: 'pkg', version: '1.0.0', scripts: { build: 'vite build' } })))
+      .toThrow(/Claude Code, Codex, or pi/)
+  })
+})

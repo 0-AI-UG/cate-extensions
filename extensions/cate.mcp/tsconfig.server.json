@@ -1,0 +1,21 @@
+{
+  // Typecheck-only config for the Node server (src/server + src/shared). The
+  // runnable dist/server.js is produced by esbuild (see build:server), which
+  // bundles @modelcontextprotocol/sdk into a single self-contained CJS file, so
+  // tsc never emits here. moduleResolution "bundler" matches how esbuild
+  // resolves the SDK's exports map.
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2020"],
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "include": ["src/server/**/*.ts", "src/shared/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

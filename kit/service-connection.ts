@@ -1,12 +1,12 @@
 // =============================================================================
 // ServiceConnection — shared gating UI for extensions that wrap an external
-// service (mcphub provisions one; sourcebot/deepwiki connect to a user-run
-// instance). It owns one honest state machine and renders a coherent
-// connection card over a content area the consumer fills once ready:
+// service (datasette provisions one). It owns one honest state machine and
+// renders a coherent connection card over a content area the consumer fills
+// once ready:
 //
-//   idle ─▶ provisioning ─▶ ready            (run-for-me: mcphub)
+//   idle ─▶ provisioning ─▶ ready            (run-for-me: datasette)
 //                └─▶ error ◀─ retry
-//   needs-connection ─▶ connecting ─▶ ready  (connect-to-existing: sourcebot/deepwiki)
+//   needs-connection ─▶ connecting ─▶ ready  (connect-to-existing services)
 //                          └─▶ error ─▶ (edit / retry)
 //
 // The consumer drives transitions by calling setState(...); the widget fires

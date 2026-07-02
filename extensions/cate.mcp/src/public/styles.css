@@ -1,0 +1,578 @@
+/* cate.mcp panel styles. Layout and extension-specific bits only; colors,
+ * buttons, inputs, drawers come from the kit (cate-kit.css / --cate-* tokens).
+ * Layout: 210px sidebar (FileExplorer idiom) + main detail area. */
+
+.mcp-shell {
+  flex-direction: row;
+}
+
+.mcp-center {
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- sidebar --------------------------------------------------------------- */
+
+.mcp-side {
+  width: 210px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--cate-bg-side);
+  border-right: 1px solid var(--cate-border);
+  min-height: 0;
+}
+.mcp-side__head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  flex: 0 0 auto;
+  padding: 0 8px;
+}
+.mcp-side__headspacer {
+  flex: 1;
+}
+.mcp-side__filter {
+  padding: 0 8px 6px;
+}
+.mcp-side__filter .cate-input {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.mcp-side__list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: 0;
+}
+.mcp-side__foot {
+  flex: 0 0 auto;
+  padding: 6px;
+  border-top: 1px solid var(--cate-border);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* 28px sidebar row (agent sidebar idiom): dot/icon + 13px name + muted 11px
+   suffix, rounded-md, hover fill; selected = stronger fill. */
+.mcp-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  flex: 0 0 auto;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--cate-radius-sm);
+  background: transparent;
+  color: var(--cate-fg);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.mcp-item:hover {
+  background: var(--cate-hover);
+}
+.mcp-item--selected,
+.mcp-item--selected:hover {
+  background: var(--cate-hover-strong);
+}
+.mcp-item__name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-item__suffix {
+  flex: 0 0 auto;
+  color: var(--cate-muted);
+  font-size: 11px;
+}
+.mcp-item__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--cate-fg-secondary);
+}
+.mcp-item__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* --- status dots ------------------------------------------------------------ */
+
+.mcp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  display: inline-block;
+  background: var(--cate-muted);
+}
+.mcp-dot--running { background: var(--cate-success); }
+.mcp-dot--degraded { background: var(--cate-warning); }
+.mcp-dot--starting,
+.mcp-dot--restarting { background: var(--cate-warning); animation: mcp-pulse 1s infinite; }
+.mcp-dot--error { background: var(--cate-danger); }
+.mcp-dot--needs-auth { background: var(--cate-warning); }
+.mcp-dot--disabled,
+.mcp-dot--stopped { background: var(--cate-muted); }
+@keyframes mcp-pulse {
+  50% { opacity: 0.3; }
+}
+
+/* --- main area -------------------------------------------------------------- */
+
+.mcp-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--cate-bg);
+  display: flex;
+  flex-direction: column;
+  padding: var(--cate-gap);
+  gap: var(--cate-gap);
+}
+.mcp-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+/* --- server detail ----------------------------------------------------------- */
+
+.mcp-detail__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.mcp-detail__name {
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-detail__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--cate-muted);
+  flex: 0 0 auto;
+}
+.mcp-detail__uptime {
+  font-size: 11px;
+  color: var(--cate-muted);
+  flex: 0 0 auto;
+}
+.mcp-detail__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.mcp-detail__meta {
+  color: var(--cate-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--cate-fg-secondary);
+}
+
+/* Error card: surface-1, hairline, danger accent. */
+.mcp-errorcard {
+  flex: 0 0 auto;
+  background: var(--cate-bg-elev);
+  border: 1px solid var(--cate-border);
+  border-left: 2px solid var(--cate-danger);
+  border-radius: var(--cate-radius);
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--cate-danger);
+  word-break: break-word;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* --- auth block --------------------------------------------------------------- */
+
+.mcp-auth {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mcp-auth__row {
+  display: flex;
+}
+.mcp-auth__link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.mcp-authlink {
+  color: var(--cate-accent);
+  word-break: break-all;
+  font: var(--cate-mono);
+  font-size: 11px;
+}
+
+/* --- inventory ---------------------------------------------------------------- */
+
+.mcp-inv {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mcp-inv__filter {
+  max-width: 220px;
+  padding: 3px 8px;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.mcp-grouplabel {
+  height: 28px;
+  display: flex;
+  align-items: center;
+}
+.mcp-invrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  flex: 0 0 auto;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--cate-radius-sm);
+  background: transparent;
+  color: var(--cate-fg);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.mcp-invrow:hover {
+  background: var(--cate-hover);
+}
+.mcp-invrow__name {
+  font: var(--cate-mono);
+  font-size: 12px;
+  color: var(--cate-fg);
+  white-space: nowrap;
+}
+.mcp-invrow__desc {
+  flex: 1 1 auto;
+  color: var(--cate-muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-invrow--aux .mcp-invrow__name {
+  color: var(--cate-muted);
+  font: inherit;
+  font-size: 12px;
+}
+.mcp-inv__schema {
+  color: var(--cate-muted);
+  font: var(--cate-mono);
+  font-size: 11px;
+  word-break: break-word;
+}
+
+/* --- collapsed sections (Log / History) ---------------------------------------- */
+
+.mcp-fold summary {
+  cursor: pointer;
+  list-style: none;
+}
+.mcp-fold summary::-webkit-details-marker {
+  display: none;
+}
+.mcp-fold summary::after {
+  content: ' ›';
+}
+.mcp-fold[open] summary::after {
+  content: ' ⌄';
+}
+.mcp-fold > *:not(summary) {
+  margin-top: 6px;
+}
+.mcp-stderr {
+  font-size: 12px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.mcp-history {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mcp-history__row {
+  display: flex;
+  gap: 8px;
+  color: var(--cate-muted);
+  font: var(--cate-mono);
+  font-size: 11px;
+}
+
+/* --- playground ----------------------------------------------------------------- */
+
+.mcp-play {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mcp-play__form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mcp-play__result {
+  border: 1px solid var(--cate-border);
+  border-radius: var(--cate-radius-sm);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mcp-play__result--error {
+  border-color: var(--cate-danger);
+}
+.mcp-play__meta {
+  color: var(--cate-muted);
+  font-size: 11px;
+}
+.mcp-play__img {
+  max-width: 100%;
+  border-radius: var(--cate-radius-sm);
+}
+
+/* --- key/value editor -------------------------------------------------------------- */
+
+.mcp-kvedit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mcp-kvedit__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mcp-kvedit__row .cate-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- discover ------------------------------------------------------------------------ */
+
+.mcp-disc__search {
+  display: flex;
+  gap: 8px;
+}
+.mcp-disc__search .cate-input {
+  flex: 1;
+  max-width: 420px;
+}
+.mcp-disc__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mcp-discrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  flex: 0 0 auto;
+  padding: 0 8px;
+  border-radius: var(--cate-radius-sm);
+  min-width: 0;
+}
+.mcp-discrow:hover {
+  background: var(--cate-hover);
+}
+.mcp-discrow__name {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 auto;
+}
+.mcp-discrow__desc {
+  flex: 1 1 auto;
+  color: var(--cate-muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-discrow__add {
+  opacity: 0;
+  flex: 0 0 auto;
+}
+.mcp-discrow:hover .mcp-discrow__add,
+.mcp-discrow__add:focus-visible {
+  opacity: 1;
+}
+
+/* --- endpoint ------------------------------------------------------------------------ */
+
+.mcp-def {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.mcp-def__key {
+  width: 96px;
+  flex: 0 0 auto;
+  color: var(--cate-fg-secondary);
+  font-size: 12px;
+}
+.mcp-def__value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- modal (agent popover spec: surface-3, strong hairline, 12px radius, deep
+   shadow) — centered over a scrim, capped to the panel viewport ---------------------- */
+
+.mcp-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  background: var(--cate-bg-elev);
+  border: 1px solid var(--cate-border-strong);
+  border-radius: var(--cate-radius-lg);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+  box-shadow: var(--cate-shadow-pop);
+  overflow: hidden;
+}
+.mcp-modal__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--cate-border);
+}
+.mcp-modal__title {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-modal__spacer {
+  flex: 1;
+}
+.mcp-modal__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mcp-modal__foot {
+  padding: 10px 12px;
+  border-top: 1px solid var(--cate-border);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.mcp-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 19;
+}
+
+/* --- segmented transport toggle -------------------------------------------------------- */
+
+.mcp-seg {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--cate-hover);
+  border-radius: var(--cate-radius-sm);
+  padding: 2px;
+}
+.mcp-seg__btn {
+  border: none;
+  background: transparent;
+  color: var(--cate-fg-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: var(--cate-radius-xs);
+  cursor: pointer;
+}
+.mcp-seg__btn:hover {
+  color: var(--cate-fg);
+}
+.mcp-seg__btn--active {
+  color: var(--cate-fg);
+  background: var(--cate-hover-strong);
+}
+
+/* --- misc ------------------------------------------------------------------------------- */
+
+.mcp-muted {
+  color: var(--cate-muted);
+  font-size: 12px;
+}
+.mcp-mono {
+  font: var(--cate-mono);
+}
+.mcp-note {
+  color: var(--cate-fg-secondary);
+}
+.mcp-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--cate-fg-secondary);
+}
+.mcp-inline-error {
+  color: var(--cate-danger);
+  font-size: 12px;
+  word-break: break-word;
+}
+.mcp-empty__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mcp-searchbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.mcp-searchbar .cate-input {
+  flex: 1;
+}

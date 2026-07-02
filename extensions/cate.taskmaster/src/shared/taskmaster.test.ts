@@ -11,6 +11,9 @@ import {
   applyTaskPatch,
   addTask,
   nextTaskId,
+  coerceStatusInput,
+  validateTaskPatch,
+  validateNewTask,
   COLUMNS,
   type Task,
 } from './taskmaster'
@@ -262,5 +265,134 @@ describe('nextTaskId', () => {
   it('returns max id + 1, or 1 for an empty array', () => {
     expect(nextTaskId([])).toBe(1)
     expect(nextTaskId([{ id: 3 }, { id: 7 }, { id: 2 }])).toBe(8)
+  })
+})
+
+describe('unknown-field preservation (round-trip)', () => {
+  // Fields the extension does not model: on tasks, subtasks, tag buckets, and
+  // at the top level. Writes must never drop them.
+  const flatExtras = {
+    tasks: [
+      {
+        id: 1,
+        title: 'A',
+        status: 'pending',
+        dependencies: [],
+        assignee: 'sam',
+        labels: ['backend', 'urgent'],
+        subtasks: [{ id: 1, title: 's', status: 'pending', dependencies: [], estimate: '2h' }],
+      },
+    ],
+    metadata: { created: '2025-01-01', custom: { nested: true } },
+    somethingElse: 42,
+  }
+  const taggedExtras = {
+    $schema: 'https://example.com/tasks.schema.json',
+    master: {
+      tasks: [{ id: 1, title: 'A', status: 'pending', vendorField: { a: 1 } }],
+      metadata: { description: 'main context' },
+    },
+    'feature-x': { tasks: [{ id: 1, title: 'B', status: 'done' }] },
+  }
+
+  it('applyTaskPatch keeps unknown task/subtask/top-level fields (flat shape)', () => {
+    const out = JSON.parse(applyTaskPatch(JSON.stringify(flatExtras), 'master', 1, { status: 'done' })!)
+    expect(out.tasks[0].assignee).toBe('sam')
+    expect(out.tasks[0].labels).toEqual(['backend', 'urgent'])
+    expect(out.tasks[0].subtasks[0].estimate).toBe('2h')
+    expect(out.metadata).toEqual({ created: '2025-01-01', custom: { nested: true } })
+    expect(out.somethingElse).toBe(42)
+    expect(out.tasks[0].status).toBe('done')
+  })
+
+  it('applyTaskPatch changes ONLY the patched field (tagged shape, deep equal)', () => {
+    const expected = JSON.parse(JSON.stringify(taggedExtras))
+    expected.master.tasks[0].title = 'Renamed'
+    const out = JSON.parse(applyTaskPatch(JSON.stringify(taggedExtras), 'master', 1, { title: 'Renamed' })!)
+    expect(out).toEqual(expected)
+  })
+
+  it('addTask appends without touching anything else (flat shape, deep equal)', () => {
+    const res = addTask(JSON.stringify(flatExtras), 'master', { title: 'New' })!
+    const out = JSON.parse(res.text)
+    const expected = JSON.parse(JSON.stringify(flatExtras))
+    expected.tasks.push(out.tasks[1]) // the appended task itself
+    expect(out).toEqual(expected)
+    expect(out.tasks[1].title).toBe('New')
+  })
+
+  it('addTask keeps tag metadata and sibling tags (tagged shape)', () => {
+    const out = JSON.parse(addTask(JSON.stringify(taggedExtras), 'master', { title: 'New' })!.text)
+    expect(out.$schema).toBe('https://example.com/tasks.schema.json')
+    expect(out.master.metadata).toEqual({ description: 'main context' })
+    expect(out.master.tasks[0].vendorField).toEqual({ a: 1 })
+    expect(out['feature-x']).toEqual(taggedExtras['feature-x'])
+  })
+})
+
+describe('coerceStatusInput', () => {
+  it('accepts known statuses and aliases', () => {
+    expect(coerceStatusInput('done')).toBe('done')
+    expect(coerceStatusInput('completed')).toBe('done')
+    expect(coerceStatusInput('In Progress')).toBe('in-progress')
+    expect(coerceStatusInput('canceled')).toBe('cancelled')
+  })
+  it('rejects unknown values instead of defaulting', () => {
+    expect(coerceStatusInput('donezo')).toBeNull()
+    expect(coerceStatusInput('')).toBeNull()
+    expect(coerceStatusInput(42)).toBeNull()
+    expect(coerceStatusInput(undefined)).toBeNull()
+  })
+})
+
+describe('validateTaskPatch', () => {
+  it('accepts a clean patch and normalizes status aliases', () => {
+    const v = validateTaskPatch({ title: 'T', status: 'completed', dependencies: [1, 2] })
+    expect(v).toEqual({ ok: true, patch: { title: 'T', status: 'done', dependencies: [1, 2] } })
+  })
+  it('rejects non-object patches', () => {
+    for (const bad of [null, undefined, 'x', 42, [1]]) {
+      expect(validateTaskPatch(bad).ok).toBe(false)
+    }
+  })
+  it('rejects invalid status values', () => {
+    expect(validateTaskPatch({ status: 'donezo' })).toMatchObject({ ok: false })
+    expect(validateTaskPatch({ status: 7 })).toMatchObject({ ok: false })
+  })
+  it('rejects wrong-typed string fields', () => {
+    expect(validateTaskPatch({ title: 42 })).toMatchObject({ ok: false })
+    expect(validateTaskPatch({ details: { rich: true } })).toMatchObject({ ok: false })
+  })
+  it('rejects an empty title', () => {
+    expect(validateTaskPatch({ title: '   ' })).toMatchObject({ ok: false })
+  })
+  it('rejects malformed dependencies', () => {
+    expect(validateTaskPatch({ dependencies: 'nope' })).toMatchObject({ ok: false })
+    expect(validateTaskPatch({ dependencies: [1, 'two'] })).toMatchObject({ ok: false })
+    expect(validateTaskPatch({ dependencies: [NaN] })).toMatchObject({ ok: false })
+  })
+  it('drops unknown keys so they are never written', () => {
+    const v = validateTaskPatch({ title: 'T', evil: 'payload', subtasks: [] })
+    expect(v.ok).toBe(true)
+    if (v.ok) expect(v.patch).toEqual({ title: 'T' })
+  })
+  it('accepts an empty patch (harmless no-op)', () => {
+    expect(validateTaskPatch({})).toEqual({ ok: true, patch: {} })
+  })
+})
+
+describe('validateNewTask', () => {
+  it('requires a non-empty title', () => {
+    expect(validateNewTask({})).toMatchObject({ ok: false })
+    expect(validateNewTask({ title: ' ' })).toMatchObject({ ok: false })
+    expect(validateNewTask(undefined)).toMatchObject({ ok: false })
+  })
+  it('applies the same field rules as a patch', () => {
+    expect(validateNewTask({ title: 'T', status: 'nope' })).toMatchObject({ ok: false })
+    expect(validateNewTask({ title: 'T', dependencies: ['x'] })).toMatchObject({ ok: false })
+  })
+  it('accepts minimal valid input', () => {
+    const v = validateNewTask({ title: 'Ship it' })
+    expect(v).toEqual({ ok: true, task: { title: 'Ship it' } })
   })
 })

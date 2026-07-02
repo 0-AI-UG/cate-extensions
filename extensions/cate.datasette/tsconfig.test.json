@@ -1,6 +1,6 @@
 {
   // Type-check config for the Vitest suite (Node unit tests over the pure
-  // helpers in src/datasette.ts and src/scan.ts).
+  // helpers in src/datasette.ts, src/scan.ts and src/proxy.ts).
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "module": "ESNext",
@@ -12,7 +12,9 @@
   "include": [
     "src/datasette.ts",
     "src/scan.ts",
+    "src/proxy.ts",
     "src/datasette.test.ts",
-    "src/scan.test.ts"
+    "src/scan.test.ts",
+    "src/proxy.test.ts"
   ]
 }

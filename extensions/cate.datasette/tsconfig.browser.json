@@ -9,8 +9,5 @@
     "lib": ["ES2020", "DOM"],
     "types": []
   },
-  "include": ["src/public/**/*.ts", "src/_kit/**/*.ts"],
-  // service-detect.ts is a server-only kit module (node: APIs); panels never
-  // import it, so keep it out of the DOM/no-node browser typecheck.
-  "exclude": ["src/_kit/service-detect.ts"]
+  "include": ["src/public/**/*.ts", "src/_kit/**/*.ts"]
 }

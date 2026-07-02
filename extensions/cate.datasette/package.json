@@ -1,6 +1,6 @@
 {
   "name": "cate.datasette",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Datasette wrapper, a server-backed Cate extension. Launches a local Datasette over the workspace's SQLite files and embeds its UI, reverse-proxied and loopback-bound.",
   "scripts": {

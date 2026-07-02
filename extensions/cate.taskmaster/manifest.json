@@ -1,7 +1,7 @@
 {
   "id": "cate.taskmaster",
   "name": "Task Master Board",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "A kanban board for Task Master tasks. Reads .taskmaster/tasks/tasks.json from the project and shows pending / in-progress / done columns with task detail, dependencies, subtasks, file links, and a send-to-agent action.",
   "panels": [
     {

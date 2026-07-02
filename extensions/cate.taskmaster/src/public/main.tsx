@@ -179,6 +179,9 @@ function TaskDetail({
   onEdit: () => void
 }) {
   const [agentBusy, setAgentBusy] = useState(false)
+  // Inline, because cate.ui.notify is itself scope-gated and may be a no-op —
+  // an agent failure must be visible in the panel, not just as a maybe-toast.
+  const [agentError, setAgentError] = useState<string | null>(null)
   const refs = useMemo(() => fileRefsForTask(task), [task])
 
   const openFile = useCallback((path: string, line?: number) => {
@@ -188,6 +191,7 @@ function TaskDetail({
   const sendToAgent = useCallback(async () => {
     if (!cate?.agent || agentBusy) return
     setAgentBusy(true)
+    setAgentError(null)
     const prompt =
       `Work on Task Master task #${task.id}: "${task.title}".\n\n` +
       `Description: ${task.description || '(none)'}\n` +
@@ -198,10 +202,16 @@ function TaskDetail({
         : '')
     try {
       const result = await cate.agent.run(prompt)
-      if (result && 'error' in result) notify(`Agent: ${result.error}`, 'error')
-      else notify('Agent finished working on this task', 'info')
+      if (result && 'error' in result) {
+        setAgentError(result.error)
+        notify(`Agent: ${result.error}`, 'error')
+      } else {
+        notify('Agent finished working on this task', 'info')
+      }
     } catch (err) {
-      notify(`Agent failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+      const msg = err instanceof Error ? err.message : String(err)
+      setAgentError(msg)
+      notify(`Agent failed: ${msg}`, 'error')
     } finally {
       setAgentBusy(false)
     }
@@ -222,7 +232,10 @@ function TaskDetail({
 
       <div className="cate-drawer__body tm-detail">
         <div className="tm-detail__tags">
-          <span className={`cate-pill tm-statuspill tm-dot--${task.status}`}>{STATUS_LABEL[task.status]}</span>
+          <span className="tm-statuspill">
+            <StatusDot status={task.status} />
+            {STATUS_LABEL[task.status]}
+          </span>
           {task.priority && <span className="cate-chip">priority: {task.priority}</span>}
         </div>
 
@@ -288,6 +301,9 @@ function TaskDetail({
         )}
       </div>
 
+      {agentError && (
+        <div className="cate-banner cate-banner--error tm-drawer__error">Agent failed: {agentError}</div>
+      )}
       <div className="cate-drawer__foot">
         <button className="cate-btn" onClick={onEdit} type="button">
           Edit
@@ -335,18 +351,21 @@ function TaskEditor({
   mode: 'create' | 'edit'
   initial: EditorValues
   onCancel: () => void
-  onSave: (values: EditorValues) => Promise<void>
+  /** Resolves with an error message to show inline, or null on success. */
+  onSave: (values: EditorValues) => Promise<string | null>
 }) {
   const [values, setValues] = useState<EditorValues>(initial)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const set = <K extends keyof EditorValues>(key: K, v: EditorValues[K]) =>
     setValues((prev) => ({ ...prev, [key]: v }))
 
   const save = async () => {
     if (!values.title.trim() || busy) return
     setBusy(true)
+    setError(null)
     try {
-      await onSave(values)
+      setError(await onSave(values))
     } finally {
       setBusy(false)
     }
@@ -429,6 +448,7 @@ function TaskEditor({
           />
         </div>
       </div>
+      {error && <div className="cate-banner cate-banner--error tm-drawer__error">Save failed: {error}</div>}
       <div className="cate-drawer__foot">
         <button className="cate-btn" onClick={onCancel} type="button">
           Cancel
@@ -457,10 +477,12 @@ function GenerateDrawer({
 }) {
   const [spec, setSpec] = useState('')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const generate = async () => {
     if (!spec.trim() || busy || !cate?.agent) return
     setBusy(true)
+    setError(null)
     const prompt =
       `You are working in a project that uses Task Master. The tasks file is ` +
       `\`.taskmaster/tasks/tasks.json\`. Read it if it exists.\n\n` +
@@ -475,13 +497,16 @@ function GenerateDrawer({
     try {
       const result = await cate.agent.run(prompt)
       if (result && 'error' in result) {
+        setError(result.error)
         notify(`Agent: ${result.error}`, 'error')
       } else {
         notify('Tasks generated', 'info')
         onDone()
       }
     } catch (err) {
-      notify(`Agent failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(msg)
+      notify(`Agent failed: ${msg}`, 'error')
     } finally {
       setBusy(false)
     }
@@ -509,6 +534,7 @@ function GenerateDrawer({
           onChange={(e) => setSpec(e.target.value)}
         />
       </div>
+      {error && <div className="cate-banner cate-banner--error tm-drawer__error">Agent failed: {error}</div>}
       <div className="cate-drawer__foot">
         <button className="cate-btn" onClick={onClose} type="button">
           Cancel
@@ -530,11 +556,14 @@ const EMPTY_ICON =
   '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><rect x="1.5" y="2.5" width="3.5" height="11" rx="1" fill="none" stroke="currentColor"/><rect x="6.25" y="2.5" width="3.5" height="7" rx="1" fill="none" stroke="currentColor"/><rect x="11" y="2.5" width="3.5" height="9" rx="1" fill="none" stroke="currentColor"/></svg>'
 
 function EmptyState({
+  mode,
   path,
   canAgent,
   onCreate,
   onGenerate,
 }: {
+  /** uninitialized: no tasks file on disk yet; empty: file exists, no tasks. */
+  mode: 'uninitialized' | 'empty'
   path: string | null
   canAgent: boolean
   onCreate: () => void
@@ -547,8 +576,15 @@ function EmptyState({
         aria-hidden="true"
         dangerouslySetInnerHTML={{ __html: EMPTY_ICON }}
       />
-      <h3>No tasks yet</h3>
-      <p>Create your first task, or let Cate's agent generate a plan from a spec.</p>
+      <h3>{mode === 'uninitialized' ? 'Task Master isn’t set up here' : 'No tasks yet'}</h3>
+      {mode === 'uninitialized' ? (
+        <p>
+          Run <code>task-master init</code> in the project root to initialize it — or just create a
+          task below and the board will create the file for you.
+        </p>
+      ) : (
+        <p>Create your first task, or let Cate's agent generate a plan from a spec.</p>
+      )}
       <div className="cate-conn__actions">
         <button className="cate-btn cate-btn--primary" onClick={onCreate} type="button">
           Create your first task
@@ -568,6 +604,20 @@ function EmptyState({
   )
 }
 
+/** Full-panel state for a tasks.json we can't parse: show the error and keep
+ *  the poll running — the board recovers by itself once the file is fixed. */
+function ErrorState({ error, path }: { error: string; path: string | null }) {
+  return (
+    <div className="tm-errorstate">
+      <div className="cate-banner cate-banner--error">Couldn’t read tasks: {error}</div>
+      <p className="tm-muted">
+        Watching <code>{path ?? 'tasks.json'}</code> — the board will recover as soon as the file
+        parses again.
+      </p>
+    </div>
+  )
+}
+
 // --- root --------------------------------------------------------------------
 
 type Drawer = { kind: 'detail'; id: number } | { kind: 'edit'; id: number } | { kind: 'create' } | { kind: 'generate' } | null
@@ -582,6 +632,7 @@ function App() {
   const [draggingId, setDraggingId] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
   const lastMtime = useRef<number | null>(null)
+  const hasBoard = useRef(false) // ref, not state: `load` is a stable callback
   const writing = useRef(false)
 
   // Boot: theme + persisted tag.
@@ -600,16 +651,20 @@ function App() {
     if (writing.current && !force) return
     try {
       const res = await fetchBoard()
-      if (!force && res.mtime !== null && res.mtime === lastMtime.current && board) return
+      if (!force && res.mtime !== null && res.mtime === lastMtime.current && hasBoard.current) return
       lastMtime.current = res.mtime
       setInitialized(res.initialized)
       setPath(res.path)
       setError(res.error)
-      setBoard(res.board)
+      // On a read/parse error keep showing the last good board (with the error
+      // banner) instead of blanking it; polling recovers when the file is fixed.
+      if (res.board !== null || !res.error) {
+        setBoard(res.board)
+        hasBoard.current = res.board !== null
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -656,7 +711,7 @@ function App() {
   )
 
   const saveEditor = useCallback(
-    async (mode: 'create' | 'edit', values: EditorValues, id?: number) => {
+    async (mode: 'create' | 'edit', values: EditorValues, id?: number): Promise<string | null> => {
       writing.current = true
       const patch = {
         title: values.title.trim(),
@@ -672,11 +727,14 @@ function App() {
           : await patchTask(activeTag, id!, patch)
       writing.current = false
       if (!res.ok) {
-        notify(`Save failed: ${res.error}`, 'error')
-        return
+        const msg = res.error ?? 'unknown error'
+        notify(`Save failed: ${msg}`, 'error')
+        void load(true) // e.g. a 409: pick up whatever changed on disk
+        return msg
       }
       setDrawer(null)
       await load(true)
+      return null
     },
     [activeTag, load],
   )
@@ -686,7 +744,15 @@ function App() {
   if (initialized === null && !board) {
     return <div className="cate-app tm-center">Loading…</div>
   }
-  if (initialized === false || (board === null && !error)) {
+  // Corrupt/unreadable tasks.json with no last-good board to fall back on.
+  if (error && !board) {
+    return (
+      <div className="cate-app">
+        <ErrorState error={error} path={path} />
+      </div>
+    )
+  }
+  if (initialized === false || board === null || tasks.length === 0) {
     return (
       <div className="cate-app">
         <Topbar
@@ -699,6 +765,7 @@ function App() {
           onGenerate={() => setDrawer({ kind: 'generate' })}
         />
         <EmptyState
+          mode={initialized === false ? 'uninitialized' : 'empty'}
           path={path}
           canAgent={canAgent}
           onCreate={() => setDrawer({ kind: 'create' })}

@@ -74,8 +74,9 @@ export function mapAnthropicContent(content: unknown): Part[] {
         parts.push({ kind: 'image', alt: 'image' })
         break
       default:
-        // Unknown block: show its JSON rather than dropping content silently.
-        if (b.text && typeof b.text === 'string') parts.push({ kind: 'text', text: b.text })
+        // Unknown/new block type: never throw — surface its text if it carries
+        // any, otherwise skip it (dumping raw JSON here would drown the chat).
+        if (typeof b.text === 'string' && b.text.length) parts.push({ kind: 'text', text: b.text })
         break
     }
   }

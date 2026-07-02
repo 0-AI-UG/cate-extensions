@@ -97,4 +97,30 @@ describe('findSqliteFiles', () => {
   it('returns empty for an unreadable root', () => {
     expect(findSqliteFiles(path.join(root, 'missing'))).toEqual([])
   })
+
+  it('does not follow symlinks (no cycles, no duplicate trees, no linked files)', () => {
+    const good = writeSqlite('real/app.db')
+    fs.symlinkSync(root, path.join(root, 'loop')) // cycle back to the root
+    fs.symlinkSync(path.join(root, 'real'), path.join(root, 'alias')) // duplicate view
+    fs.symlinkSync(good, path.join(root, 'linked.db')) // symlinked db file
+
+    // Must terminate (the loop is never descended) and report each db once.
+    expect(findSqliteFiles(root)).toEqual([good])
+  })
+
+  it('skips permission-denied directories and files instead of failing the scan', () => {
+    if (process.getuid?.() === 0) return // root bypasses mode bits
+    const good = writeSqlite('open/ok.db')
+    writeSqlite('sealed/hidden.db')
+    const sealed = path.join(root, 'sealed')
+    const noRead = writeSqlite('open/no-read.db')
+    fs.chmodSync(sealed, 0o000)
+    fs.chmodSync(noRead, 0o000)
+    try {
+      expect(findSqliteFiles(root)).toEqual([good])
+    } finally {
+      fs.chmodSync(sealed, 0o755) // so afterEach's rmSync can clean up
+      fs.chmodSync(noRead, 0o644)
+    }
+  })
 })

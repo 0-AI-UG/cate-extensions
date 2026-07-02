@@ -2,46 +2,83 @@
  * Cate extension UI kit.
  *
  * One stylesheet every extension imports, so the catalog is visually coherent
- * with Cate and with itself. Colors come from `--cate-*` tokens that theme.ts
- * fills in from cate.theme.get(); the values below are sensible dark/light
- * defaults used when a token is absent or the panel renders outside Cate.
+ * with Cate and with itself. The design language mirrors the Agent panel
+ * (src/agent/renderer/): surface-4 panel root, surface-0 side wells, surface-3
+ * inputs/cards, quiet hover-fill buttons with a solid-accent primary, and the
+ * agent accent pair (accent / accent-light) for highlights.
+ *
+ * Colors come from `--cate-*` tokens that theme.ts fills in from
+ * cate.theme.get(); the values below mirror Cate's own base palettes
+ * (src/shared/themes/base.ts) and are used when a token is absent or the panel
+ * renders outside Cate.
  *
  * Class prefix: `cate-`. Tokens: `--cate-*`.
  * ========================================================================== */
 
 :root,
 :root[data-cate-theme='dark'] {
-  --cate-bg: #1b1d23;
-  --cate-bg-elev: #23262e;
-  --cate-bg-card: #2a2e38;
-  --cate-border: #353a45;
-  --cate-fg: #e6e8ec;
-  --cate-muted: #9aa1ad;
-  --cate-accent: #5b8cff;
+  /* surfaces (agent-panel ramp: surface-4 root, surface-0 wells, surface-3 controls) */
+  --cate-bg: #322f2c;
+  --cate-bg-side: #1d1c1a;
+  --cate-bg-elev: #2c2b28;
+  --cate-bg-card: #2c2b28;
+  --cate-bg-input: #2c2b28;
+  --cate-bg-selected: #423f3a;
+  --cate-hover: rgba(255, 255, 255, 0.06);
+  --cate-hover-strong: rgba(255, 255, 255, 0.12);
+  /* borders are alpha hairlines, never opaque */
+  --cate-border: rgba(255, 255, 255, 0.05);
+  --cate-border-strong: rgba(255, 255, 255, 0.1);
+  /* text */
+  --cate-fg: #e8e6e3;
+  --cate-fg-secondary: #a8a49e;
+  --cate-muted: #6b6762;
+  /* accent pair (agent / agent-light) + status */
+  --cate-accent: #4a9eff;
+  --cate-accent-light: #93c5ff;
   --cate-accent-fg: #ffffff;
-  --cate-danger: #ff7b7b;
-  --cate-success: #3fb950;
-  --cate-warning: #e3b341;
+  --cate-danger: #ff453a;
+  --cate-success: #4dd964;
+  --cate-warning: #ff9f0a;
+  /* scrollbars */
+  --cate-scrollbar: rgba(255, 255, 255, 0.15);
+  --cate-scrollbar-hover: rgba(255, 255, 255, 0.25);
 
-  --cate-radius: 8px;
+  /* radius scale: 4 chips, 6 controls, 8 cards, 12 drawers/popovers */
+  --cate-radius-xs: 4px;
   --cate-radius-sm: 6px;
+  --cate-radius: 8px;
+  --cate-radius-lg: 12px;
   --cate-gap: 12px;
-  --cate-font: 13px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --cate-mono: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  --cate-shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --cate-font: 13px/1.5 -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue',
+    sans-serif;
+  --cate-mono: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 :root[data-cate-theme='light'] {
-  --cate-bg: #f6f7f9;
-  --cate-bg-elev: #ffffff;
-  --cate-bg-card: #ffffff;
-  --cate-border: #e2e5ea;
-  --cate-fg: #1c1f24;
-  --cate-muted: #6b7280;
-  --cate-accent: #2563eb;
+  --cate-bg: #beb4a4;
+  --cate-bg-side: #b1a696;
+  --cate-bg-elev: #c3b9a9;
+  --cate-bg-card: #c3b9a9;
+  --cate-bg-input: #c3b9a9;
+  --cate-bg-selected: #b2a898;
+  --cate-hover: rgba(56, 50, 43, 0.08);
+  --cate-hover-strong: rgba(56, 50, 43, 0.16);
+  --cate-border: rgba(56, 50, 43, 0.14);
+  --cate-border-strong: rgba(56, 50, 43, 0.28);
+  --cate-fg: #1a1612;
+  --cate-fg-secondary: #38322b;
+  --cate-muted: #5e574c;
+  --cate-accent: #3c7ef0;
+  --cate-accent-light: #1e50b4;
   --cate-accent-fg: #ffffff;
-  --cate-danger: #d83a3a;
-  --cate-success: #18794e;
-  --cate-warning: #b7791f;
+  --cate-danger: #dc322f;
+  --cate-success: #4a8f3a;
+  --cate-warning: #cb4b16;
+  --cate-scrollbar: rgba(56, 50, 43, 0.24);
+  --cate-scrollbar-hover: rgba(56, 50, 43, 0.4);
+  --cate-shadow-pop: 0 12px 32px rgba(56, 50, 43, 0.35);
 }
 
 * {
@@ -59,6 +96,27 @@ body {
   background: var(--cate-bg);
   color: var(--cate-fg);
   font: var(--cate-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- scrollbars ------------------------------------------------------------ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--cate-scrollbar);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cate-scrollbar-hover);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* --- app shell ------------------------------------------------------------ */
@@ -74,17 +132,18 @@ body {
   overflow: hidden;
 }
 
+/* Agent-panel header idiom: thin 40px bar on the panel surface, no border. */
 .cate-topbar {
   display: flex;
   align-items: center;
   gap: var(--cate-gap);
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--cate-border);
-  background: var(--cate-bg-elev);
+  min-height: 40px;
+  padding: 4px 10px;
+  background: transparent;
   flex: 0 0 auto;
 }
 .cate-topbar__title {
-  font-weight: 600;
+  font-weight: 500;
 }
 .cate-topbar__spacer {
   margin-left: auto;
@@ -92,84 +151,135 @@ body {
 .cate-topbar__count {
   margin-left: auto;
   color: var(--cate-muted);
+  font-size: 12px;
 }
 
 /* --- buttons -------------------------------------------------------------- */
 
+/* Agent-panel buttons: compact, borderless. Default = quiet hover fill;
+   primary = solid accent that lightens on hover. */
 .cate-btn {
-  border: 1px solid var(--cate-border);
-  background: var(--cate-bg-card);
+  height: 24px;
+  padding: 0 10px;
+  border: none;
+  background: var(--cate-hover);
   color: var(--cate-fg);
   border-radius: var(--cate-radius-sm);
-  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
   cursor: pointer;
-  font: inherit;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   white-space: nowrap;
 }
 .cate-btn:hover:not(:disabled) {
-  border-color: var(--cate-accent);
+  background: var(--cate-hover-strong);
 }
 .cate-btn--primary {
   background: var(--cate-accent);
-  border-color: var(--cate-accent);
   color: var(--cate-accent-fg);
 }
 .cate-btn--primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+  background: var(--cate-accent-light);
+  color: var(--cate-accent-fg);
 }
 .cate-btn--ghost {
   background: transparent;
-  border-color: transparent;
-  color: var(--cate-muted);
+  color: var(--cate-fg-secondary);
 }
 .cate-btn--ghost:hover:not(:disabled) {
   color: var(--cate-fg);
-  border-color: transparent;
+  background: var(--cate-hover);
+}
+/* Small/tertiary: 11px quiet fill. */
+.cate-btn--small {
+  height: auto;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 400;
+  border-radius: var(--cate-radius-xs);
+  background: var(--cate-hover);
+  color: var(--cate-fg-secondary);
+}
+.cate-btn--small:hover:not(:disabled) {
+  color: var(--cate-fg);
+  background: var(--cate-hover-strong);
 }
 .cate-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: default;
 }
+/* 24x24 ghost icon button (agent toolbar idiom: muted, hover fill). */
 .cate-iconbtn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   background: transparent;
   border: none;
+  border-radius: var(--cate-radius-sm);
   color: var(--cate-muted);
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1;
   cursor: pointer;
-  padding: 0 4px;
 }
-.cate-iconbtn:hover {
+.cate-iconbtn:hover:not(:disabled) {
   color: var(--cate-fg);
+  background: var(--cate-hover);
+}
+.cate-iconbtn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+.cate-iconbtn:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 /* --- inputs --------------------------------------------------------------- */
 
 .cate-input,
 .cate-select {
-  background: var(--cate-bg-card);
+  background: var(--cate-bg-input);
   color: var(--cate-fg);
-  border: 1px solid var(--cate-border);
+  border: 1px solid var(--cate-border-strong);
   border-radius: var(--cate-radius-sm);
-  padding: 6px 8px;
-  font: inherit;
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.45;
   width: 100%;
+}
+.cate-input::placeholder {
+  color: var(--cate-muted);
 }
 .cate-input:focus,
 .cate-select:focus {
   outline: none;
-  border-color: var(--cate-accent);
+  border-color: color-mix(in srgb, var(--cate-accent) 60%, transparent);
 }
 .cate-label {
   display: block;
-  color: var(--cate-muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--cate-fg-secondary);
+  font-size: 12px;
   margin-bottom: 4px;
+}
+/* 10px uppercase group header (agent section label): the ONLY uppercase idiom. */
+.cate-grouplabel {
+  display: block;
+  color: color-mix(in srgb, var(--cate-muted) 70%, transparent);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 .cate-field {
   margin-bottom: 12px;
@@ -178,47 +288,61 @@ body {
 /* --- cards & chips -------------------------------------------------------- */
 
 .cate-card {
-  background: var(--cate-bg-card);
+  background: var(--cate-bg-elev);
   border: 1px solid var(--cate-border);
   border-radius: var(--cate-radius);
   padding: 12px;
 }
+/* Chip: quiet 11px hover-fill tint, no outline, no pill radius. */
 .cate-chip {
   font-size: 11px;
-  color: var(--cate-muted);
-  background: var(--cate-bg);
-  border: 1px solid var(--cate-border);
-  border-radius: 999px;
-  padding: 1px 8px;
+  color: var(--cate-fg-secondary);
+  background: var(--cate-hover);
+  border: none;
+  border-radius: var(--cate-radius-xs);
+  padding: 2px 6px;
 }
+/* Accent chip (agent pill: accent tint + accent-light text). */
+.cate-chip--accent {
+  background: color-mix(in srgb, var(--cate-accent) 15%, transparent);
+  color: var(--cate-accent-light);
+}
+/* Status pill: bare 8px dot + 12px secondary word (variant colors the dot). */
 .cate-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--cate-border);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   font-size: 12px;
+  color: var(--cate-fg-secondary);
 }
-.cate-pill--ok {
-  color: var(--cate-success);
-  border-color: color-mix(in srgb, var(--cate-success) 50%, transparent);
+.cate-pill::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--cate-muted);
 }
-.cate-pill--bad {
-  color: var(--cate-danger);
-  border-color: color-mix(in srgb, var(--cate-danger) 50%, transparent);
+.cate-pill--ok::before {
+  background: var(--cate-success);
 }
-.cate-pill--warn {
-  color: var(--cate-warning);
-  border-color: color-mix(in srgb, var(--cate-warning) 50%, transparent);
+.cate-pill--bad::before {
+  background: var(--cate-danger);
+}
+.cate-pill--warn::before {
+  background: var(--cate-warning);
 }
 
 /* --- banners -------------------------------------------------------------- */
 
 .cate-banner {
-  padding: 8px 14px;
+  padding: 8px 12px;
   background: var(--cate-bg-elev);
-  color: var(--cate-muted);
+  color: var(--cate-fg-secondary);
   border-bottom: 1px solid var(--cate-border);
   flex: 0 0 auto;
 }
@@ -229,8 +353,8 @@ body {
 /* --- status dot ----------------------------------------------------------- */
 
 .cate-dot {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   display: inline-block;
   flex: 0 0 auto;
@@ -239,14 +363,15 @@ body {
 
 /* --- code / pre ----------------------------------------------------------- */
 
+/* Code block (agent ChatMarkdown: surface-0 well, strong hairline). */
 .cate-pre {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  background: var(--cate-bg);
-  border: 1px solid var(--cate-border);
+  background: var(--cate-bg-side);
+  border: 1px solid var(--cate-border-strong);
   border-radius: var(--cate-radius-sm);
-  padding: 8px;
+  padding: 8px 12px;
   font: var(--cate-mono);
 }
 
@@ -258,26 +383,37 @@ body {
   padding: 32px;
   text-align: center;
   color: var(--cate-muted);
+  font-size: 12px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   align-items: center;
 }
+.cate-empty h2,
 .cate-empty h3 {
   color: var(--cate-fg);
+  font-size: 16px;
+  font-weight: 500;
   margin: 0;
 }
 .cate-empty p {
   margin: 0;
 }
+/* Welcome tile (agent panel: 48px rounded accent-tinted logo tile). */
 .cate-empty__icon {
-  color: var(--cate-muted);
-  opacity: 0.85;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--cate-accent) 12%, transparent);
+  color: var(--cate-accent-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 0;
 }
 .cate-empty__icon svg {
-  width: 38px;
-  height: 38px;
+  width: 24px;
+  height: 24px;
   display: block;
 }
 
@@ -287,7 +423,7 @@ body {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 2px solid var(--cate-border);
+  border: 2px solid var(--cate-border-strong);
   border-top-color: var(--cate-accent);
   animation: cate-spin 0.7s linear infinite;
 }
@@ -306,34 +442,35 @@ body {
   bottom: 0;
   width: min(440px, 92%);
   background: var(--cate-bg-elev);
-  border-left: 1px solid var(--cate-border);
+  border-left: 1px solid var(--cate-border-strong);
   display: flex;
   flex-direction: column;
-  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cate-shadow-pop);
   z-index: 5;
 }
 .cate-drawer__head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  min-height: 36px;
+  padding: 4px 12px;
   border-bottom: 1px solid var(--cate-border);
 }
 .cate-drawer__body {
   flex: 1 1 auto;
   overflow: auto;
-  padding: 14px;
+  padding: 12px;
 }
 .cate-drawer__foot {
   border-top: 1px solid var(--cate-border);
-  padding: 10px 14px;
+  padding: 10px 12px;
   display: flex;
   gap: 8px;
 }
 
 /* ============================================================================
  * Service connection — shared by extensions that wrap an external service
- * (mcphub, sourcebot, deepwiki). Rendered by service-connection.ts.
+ * (datasette). Rendered by service-connection.ts.
  * ========================================================================== */
 
 .cate-conn {
@@ -378,19 +515,26 @@ body {
   text-align: center;
   gap: 14px;
 }
+/* Same welcome-tile idiom as .cate-empty__icon. */
 .cate-conn__icon {
-  color: var(--cate-muted);
-  opacity: 0.85;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--cate-accent) 12%, transparent);
+  color: var(--cate-accent-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 0;
 }
 .cate-conn__icon svg {
-  width: 38px;
-  height: 38px;
+  width: 24px;
+  height: 24px;
   display: block;
 }
 .cate-conn__title {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 500;
 }
 .cate-conn__repo {
   color: var(--cate-muted);
@@ -402,7 +546,8 @@ body {
   text-decoration: underline;
 }
 .cate-conn__desc {
-  color: var(--cate-muted);
+  color: var(--cate-fg-secondary);
+  font-size: 12px;
   margin: 0;
   text-align: left;
 }
@@ -486,7 +631,7 @@ body {
 
 /* --- floating overlay icon button ------------------------------------------ */
 /* Icon-only control pinned to the top-right corner of a full-bleed embedded
-   UI (Datasette rescan, Hoppscotch proxy-URL copy, DeepWiki .env copy).
+   UI (e.g. Datasette rescan).
    Translucent until hovered so it doesn't compete with the embed's own chrome;
    stack a second one with .cate-overlay-btn--2nd. */
 .cate-overlay-btn {
@@ -500,10 +645,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--cate-border);
-  border-radius: 6px;
+  border: 1px solid var(--cate-border-strong);
+  border-radius: var(--cate-radius-sm);
   background: var(--cate-bg-elev);
-  color: var(--cate-muted);
+  color: var(--cate-fg-secondary);
   cursor: pointer;
   opacity: 0.65;
 }

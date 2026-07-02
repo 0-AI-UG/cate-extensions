@@ -21,25 +21,48 @@ function host(): CateHost | undefined {
   return (globalThis as { cate?: CateHost }).cate
 }
 
-/** Map of kit token -> ordered list of Cate `theme.app` keys to try. */
+/** Map of kit token -> ordered list of Cate `theme.app` keys to try. Cate's
+ *  theme.app delivers the full chrome token map (surface-0..6, text-*,
+ *  border-subtle/strong, focus-blue, activity-*, git-*, scrollbar-*,
+ *  surface-hover*); the trailing aliases keep sparse/older palettes working. */
 const TOKEN_SOURCES: Record<string, string[]> = {
-  '--cate-bg': ['app-bg', 'editor-bg', 'bg', 'background'],
-  '--cate-bg-elev': ['surface-1', 'panel-bg', 'sidebar-bg', 'titlebar-bg', 'app-bg', 'editor-bg'],
-  '--cate-bg-card': ['surface-2', 'surface', 'input-bg', 'panel-bg', 'editor-bg'],
-  '--cate-fg': ['app-fg', 'editor-fg', 'fg', 'foreground', 'text'],
+  /* Agent-panel surface roles: surface-4 root, surface-0 side wells,
+     surface-3 inputs/cards/drawers. */
+  '--cate-bg': ['surface-4', 'app-bg', 'editor-bg', 'bg', 'background'],
+  '--cate-bg-side': ['surface-0', 'sidebar-bg', 'panel-bg', 'editor-bg'],
+  '--cate-bg-elev': ['surface-3', 'panel-bg', 'sidebar-bg', 'titlebar-bg', 'app-bg', 'editor-bg'],
+  '--cate-bg-card': ['surface-3', 'surface-2', 'surface', 'panel-bg', 'editor-bg'],
+  '--cate-bg-input': ['surface-3', 'input-bg', 'surface-2'],
+  '--cate-bg-selected': ['surface-6', 'surface-4', 'surface-2'],
+  '--cate-hover': ['surface-hover'],
+  '--cate-hover-strong': ['surface-hover-strong'],
+  '--cate-fg': ['text-primary', 'app-fg', 'editor-fg', 'fg', 'foreground', 'text'],
+  '--cate-fg-secondary': ['text-secondary', 'text-primary'],
   '--cate-muted': ['text-muted', 'fg-muted', 'muted', 'description-fg'],
-  '--cate-border': ['border', 'panel-border', 'border-muted', 'divider', 'editor-line'],
-  '--cate-accent': ['accent', 'primary', 'link', 'button-bg', 'focus-border'],
+  '--cate-border': ['border-subtle', 'border', 'panel-border', 'border-muted', 'divider'],
+  '--cate-border-strong': ['border-strong', 'border-subtle', 'border'],
+  /* The agent accent pair. `agent-rgb`/`agent-light-rgb` are bare "R G B"
+     channel triplets (pick() wraps them in rgb()). */
+  '--cate-accent': ['agent-rgb', 'focus-blue', 'border-focus', 'accent', 'primary', 'link', 'button-bg'],
+  '--cate-accent-light': ['agent-light-rgb', 'agent-rgb', 'focus-blue', 'border-focus'],
   '--cate-accent-fg': ['accent-fg', 'button-fg', 'on-accent'],
-  '--cate-danger': ['error', 'danger', 'error-fg'],
-  '--cate-success': ['success', 'added-fg', 'ok'],
-  '--cate-warning': ['warning', 'modified-fg', 'warn'],
+  '--cate-danger': ['git-deleted', 'error', 'danger', 'error-fg'],
+  '--cate-success': ['activity-green', 'git-added', 'success', 'ok'],
+  '--cate-warning': ['activity-orange', 'git-modified', 'warning', 'warn'],
+  '--cate-scrollbar': ['scrollbar-thumb'],
+  '--cate-scrollbar-hover': ['scrollbar-thumb-hover', 'scrollbar-thumb'],
 }
+
+const RGB_TRIPLET = /^\d{1,3}\s+\d{1,3}\s+\d{1,3}$/
 
 function pick(app: Record<string, string>, keys: string[]): string | null {
   for (const k of keys) {
     const v = app[k]
-    if (typeof v === 'string' && v.trim()) return v.trim()
+    if (typeof v === 'string' && v.trim()) {
+      const value = v.trim()
+      /* Channel triplets ("74 158 255") become usable colors. */
+      return RGB_TRIPLET.test(value) ? `rgb(${value})` : value
+    }
   }
   return null
 }
