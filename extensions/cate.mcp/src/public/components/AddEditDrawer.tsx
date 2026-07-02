@@ -18,6 +18,9 @@ export interface AddPrefill {
   url?: string
   headers?: Record<string, string>
   note?: string
+  /** Transports this source can actually fill; the others are disabled in the
+   *  toggle. Omitted (manual add / edit) means both are allowed. */
+  allowedKinds?: ('stdio' | 'remote')[]
 }
 
 const ENV_TITLE = 'Values support ${env:VAR}, expanded from the host environment at launch, never written to the file'
@@ -49,6 +52,12 @@ export function AddEditDrawer({
   const [disabled, setDisabled] = useState(initial?.disabled === true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // When adding from a source that only supports one transport, lock the other
+  // out so the toggle can't land on an empty form. Editing keeps both.
+  const allowed = existing ? null : prefill?.allowedKinds ?? null
+  const canStdio = !allowed || allowed.includes('stdio')
+  const canRemote = !allowed || allowed.includes('remote')
 
   async function save(): Promise<void> {
     setError(null)
@@ -121,7 +130,8 @@ export function AddEditDrawer({
               <button
                 className={`mcp-seg__btn${kind === 'stdio' ? ' mcp-seg__btn--active' : ''}`}
                 type="button"
-                title="Local command"
+                disabled={!canStdio}
+                title={canStdio ? 'Local command' : 'This server has no runnable local package'}
                 onClick={() => setKind('stdio')}
               >
                 stdio
@@ -129,7 +139,8 @@ export function AddEditDrawer({
               <button
                 className={`mcp-seg__btn${kind === 'remote' ? ' mcp-seg__btn--active' : ''}`}
                 type="button"
-                title="HTTP"
+                disabled={!canRemote}
+                title={canRemote ? 'HTTP' : 'This server has no remote endpoint'}
                 onClick={() => setKind('remote')}
               >
                 remote

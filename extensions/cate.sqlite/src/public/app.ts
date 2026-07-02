@@ -48,6 +48,9 @@ interface TablePage {
 const RESCAN_ICON =
   '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M13.7 1.8v2.8h-2.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 
+const CLOSE_ICON =
+  '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
+
 const SELECTION_KEY = 'selection'
 const PAGE_SIZES = [25, 100, 500]
 
@@ -351,7 +354,24 @@ function renderQueryPanel(): void {
   queryPanelEl.hidden = !queryOpen
   if (!queryOpen || !selection) return
 
-  const ta = el('textarea') as HTMLTextAreaElement
+  // Scrim: click outside the modal to dismiss.
+  const scrim = el('div', 'sq-scrim')
+  scrim.addEventListener('click', () => closeQuery())
+
+  const modal = el('div', 'sq-modal')
+  modal.setAttribute('role', 'dialog')
+  modal.setAttribute('aria-label', 'Run SQL')
+
+  const head = el('div', 'sq-modal-head')
+  head.appendChild(el('span', 'sq-modal-title', 'Run SQL'))
+  head.appendChild(el('span', 'sq-modal-db', selection.db)).title = selection.db
+  head.appendChild(el('span', 'sq-modal-spacer'))
+  const closeBtn = iconButton(CLOSE_ICON, 'Close')
+  closeBtn.addEventListener('click', () => closeQuery())
+  head.appendChild(closeBtn)
+
+  const body = el('div', 'sq-modal-body')
+  const ta = el('textarea', 'sq-query-input') as HTMLTextAreaElement
   ta.placeholder = `SELECT * FROM ... — read-only query against ${selection.db}`
   ta.spellcheck = false
 
@@ -401,13 +421,27 @@ function renderQueryPanel(): void {
     }
   })
 
-  queryPanelEl.append(ta, actions, errorEl, resultEl)
+  body.append(ta, actions, errorEl, resultEl)
+  modal.append(head, body)
+  queryPanelEl.append(scrim, modal)
   ta.focus()
 }
 
 function toggleQuery(): void {
-  queryOpen = !queryOpen
-  queryToggleBtn.classList.toggle('is-on', queryOpen)
+  if (queryOpen) closeQuery()
+  else openQuery()
+}
+
+function openQuery(): void {
+  if (!selection) return
+  queryOpen = true
+  queryToggleBtn.classList.add('is-on')
+  renderQueryPanel()
+}
+
+function closeQuery(): void {
+  queryOpen = false
+  queryToggleBtn.classList.remove('is-on')
   renderQueryPanel()
 }
 
@@ -464,11 +498,20 @@ function mount(root: HTMLElement): void {
 
   gridWrapEl = el('div', 'sq-grid-wrap')
   pagerEl = el('div', 'sq-pager')
-  queryPanelEl = el('div', 'sq-query')
-  queryPanelEl.hidden = true
 
-  main.append(toolbar, gridWrapEl, pagerEl, queryPanelEl)
-  app.append(side, main)
+  // The SQL runner lives in a modal overlay, mounted at the app root so it
+  // floats above the whole panel. Escape dismisses it.
+  queryPanelEl = el('div', 'sq-query-overlay')
+  queryPanelEl.hidden = true
+  queryPanelEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      closeQuery()
+    }
+  })
+
+  main.append(toolbar, gridWrapEl, pagerEl)
+  app.append(side, main, queryPanelEl)
   root.appendChild(app)
 }
 

@@ -222,27 +222,37 @@ function runnerFor(pkg: RegistryPackage): { command: string; args: string[] } | 
   }
 }
 
+/** Prefill from one specific package (local stdio). Null when the package's
+ *  ecosystem has no no-install runner we can launch. */
+export function prefillFromPackage(entry: RegistryEntry, pkg: RegistryPackage): RegistryPrefill | null {
+  const runner = runnerFor(pkg)
+  if (!runner) return null
+  const needsInput: string[] = []
+  const args = [
+    ...runner.args,
+    ...argumentsToArgv(pkg.runtimeArguments, needsInput),
+    ...argumentsToArgv(pkg.packageArguments, needsInput),
+  ]
+  const env = keyValuesToRecord(pkg.environmentVariables, needsInput, 'env')
+  return { suggestedName: suggestLocalName(entry.name), kind: 'stdio', command: runner.command, args, env, needsInput }
+}
+
+/** Prefill from one specific remote (HTTP) endpoint. */
+export function prefillFromRemote(entry: RegistryEntry, remote: RegistryRemote): RegistryPrefill {
+  const needsInput: string[] = []
+  const headers = keyValuesToRecord(remote.headers, needsInput, 'header')
+  return { suggestedName: suggestLocalName(entry.name), kind: 'remote', url: remote.url, headers, needsInput }
+}
+
 /** Build the add-server prefill from a registry entry. Prefers a runnable
  *  package (local stdio) and falls back to a remote URL. Null when the entry
  *  carries nothing we can launch or connect to. */
 export function prefillFromRegistry(entry: RegistryEntry): RegistryPrefill | null {
-  const suggestedName = suggestLocalName(entry.name)
-  const needsInput: string[] = []
   for (const pkg of entry.packages) {
-    const runner = runnerFor(pkg)
-    if (!runner) continue
-    const args = [
-      ...runner.args,
-      ...argumentsToArgv(pkg.runtimeArguments, needsInput),
-      ...argumentsToArgv(pkg.packageArguments, needsInput),
-    ]
-    const env = keyValuesToRecord(pkg.environmentVariables, needsInput, 'env')
-    return { suggestedName, kind: 'stdio', command: runner.command, args, env, needsInput }
+    const prefill = prefillFromPackage(entry, pkg)
+    if (prefill) return prefill
   }
   const remote = entry.remotes.find((r) => r.type === 'streamable-http') ?? entry.remotes[0]
-  if (remote) {
-    const headers = keyValuesToRecord(remote.headers, needsInput, 'header')
-    return { suggestedName, kind: 'remote', url: remote.url, headers, needsInput }
-  }
+  if (remote) return prefillFromRemote(entry, remote)
   return null
 }
