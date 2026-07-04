@@ -21,10 +21,20 @@ const ROOT = join(__dirname, '..')
 const KIT_DIR = join(ROOT, 'kit')
 const EXT_DIR = join(ROOT, 'extensions')
 
-// Extensions that build their UI on the kit. excalidraw is a full-bleed
-// upstream component with no Cate chrome to theme; frontendkit/kitchensink are
-// dev references. All three are deliberately excluded.
+// Extensions that build their UI on the kit (browser files → src/_kit/).
+// excalidraw is a full-bleed upstream component with no Cate chrome to theme;
+// frontendkit/kitchensink are dependency-free dev references. Those are
+// deliberately excluded — they keep standalone copies on purpose.
 const KIT_CONSUMERS = [
+  'cate.sqlite',
+  'cate.mcp',
+  'cate.aisession',
+]
+
+// Extensions with a Node server that share the kit's HTTP scaffolding. These
+// files import `http`/`fs`, so they land in src/_kitserver/ (which the Node
+// tsconfigs include and the browser tsconfigs do not) rather than src/_kit/.
+const SERVER_CONSUMERS = [
   'cate.sqlite',
   'cate.mcp',
 ]
@@ -36,34 +46,57 @@ function banner(file) {
   return extname(file) === '.css' ? `/* ${line} */\n` : `// ${line}\n`
 }
 
-// Only source files ship into _kit/ (skip README.md, tsconfig.check.json, etc).
+// Top-level source files ship into _kit/ (skip README.md, tsconfig.check.json,
+// and the server/ subdir, which is its own tier).
 const kitFiles = readdirSync(KIT_DIR).filter((f) => /\.(ts|css)$/.test(f))
+const SERVER_KIT_DIR = join(KIT_DIR, 'server')
+const serverKitFiles = existsSync(SERVER_KIT_DIR)
+  ? readdirSync(SERVER_KIT_DIR).filter((f) => /\.ts$/.test(f))
+  : []
 const check = process.argv.includes('--check')
 let stale = 0
 let wrote = 0
 
-for (const id of KIT_CONSUMERS) {
-  const dest = join(EXT_DIR, id, 'src', '_kit')
-  if (!existsSync(join(EXT_DIR, id))) {
-    console.warn(`sync-kit: skip ${id} (not found)`)
-    continue
-  }
-  if (!check) mkdirSync(dest, { recursive: true })
-  for (const file of kitFiles) {
-    const content = banner(file) + readFileSync(join(KIT_DIR, file), 'utf8')
-    const target = join(dest, file)
-    const current = existsSync(target) ? readFileSync(target, 'utf8') : null
-    if (current === content) continue
-    if (check) {
-      console.error(`sync-kit: STALE ${id}/src/_kit/${file}`)
-      stale++
+// Copy `files` from `srcDir` into each consumer's `subdir`, keeping committed
+// copies byte-identical (banner + source). In --check mode, report staleness
+// instead of writing.
+function syncTier(consumers, srcDir, srcLabelPrefix, subdir) {
+  for (const id of consumers) {
+    const dest = join(EXT_DIR, id, 'src', subdir)
+    if (!existsSync(join(EXT_DIR, id))) {
+      console.warn(`sync-kit: skip ${id} (not found)`)
       continue
     }
-    writeFileSync(target, content)
-    console.log(`sync-kit: ${id}/src/_kit/${file}`)
-    wrote++
+    if (!check) mkdirSync(dest, { recursive: true })
+    for (const file of files(srcDir)) {
+      const content = banner(join(srcLabelPrefix, file)) + readFileSync(join(srcDir, file), 'utf8')
+      const target = join(dest, file)
+      const current = existsSync(target) ? readFileSync(target, 'utf8') : null
+      if (current === content) continue
+      if (check) {
+        console.error(`sync-kit: STALE ${id}/src/${subdir}/${file}`)
+        stale++
+        continue
+      }
+      writeFileSync(target, content)
+      console.log(`sync-kit: ${id}/src/${subdir}/${file}`)
+      wrote++
+    }
   }
 }
+
+// Bind the file list per tier (kept out of syncTier so the banner label stays
+// relative to kit/).
+const TIER_FILES = new Map([
+  [KIT_DIR, kitFiles],
+  [SERVER_KIT_DIR, serverKitFiles],
+])
+function files(srcDir) {
+  return TIER_FILES.get(srcDir) ?? []
+}
+
+syncTier(KIT_CONSUMERS, KIT_DIR, '', '_kit')
+syncTier(SERVER_CONSUMERS, SERVER_KIT_DIR, 'server', '_kitserver')
 
 if (check) {
   if (stale) {

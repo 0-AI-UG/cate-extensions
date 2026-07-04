@@ -58,7 +58,13 @@ interface CateHost {
   canvas: {
     createPanel(
       type: string,
-      opts?: { position?: unknown; size?: unknown; props?: unknown },
+      opts?: {
+        position?: unknown
+        url?: string
+        filePath?: string
+        extensionId?: string
+        extensionPanelId?: string
+      },
     ): Promise<unknown>
   }
   ui: {

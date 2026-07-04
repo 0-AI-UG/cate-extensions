@@ -88,8 +88,19 @@ function App() {
       /* outside Cate */
     }
     void load(true)
-    const timer = setInterval(() => void load(), POLL_MS)
-    return () => clearInterval(timer)
+    // Poll only while visible; skip the fetch when the panel/document is
+    // hidden and refresh immediately when it becomes visible again.
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') void load()
+    }, POLL_MS)
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [load])
 
   function selectView(next: View): void {

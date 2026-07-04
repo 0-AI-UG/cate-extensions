@@ -13,16 +13,14 @@ import type {
   ToolCallResponse,
 } from '../shared/types'
 import type { RegistryEntry } from '../shared/registry'
-
-// Base path of our served panel, e.g. "/ext/<routeToken>/".
-const BASE = location.pathname.replace(/[^/]*$/, '')
+import { apiFetch } from '../_kit/api-client'
 
 async function request<T extends { ok?: boolean; error?: string }>(
   path: string,
   init?: RequestInit,
 ): Promise<T | { ok: false; error: string }> {
   try {
-    const res = await fetch(`${BASE}${path}`, { cache: 'no-store', ...init })
+    const res = await apiFetch(path, init)
     const data = (await res.json().catch(() => ({}))) as T
     if (!res.ok && data.ok !== true) {
       return { ok: false, error: data.error || `HTTP ${res.status}` }

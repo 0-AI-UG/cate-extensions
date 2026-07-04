@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { parseSession, type Conversation } from './parsers'
 import { ConversationView } from './components/Conversation'
 import { DropZone } from './components/DropZone'
+import type { CateHost } from './_kit/cate-host'
 
 const cateApi = (globalThis as { cate?: CateHost }).cate
 

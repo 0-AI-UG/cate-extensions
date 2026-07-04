@@ -97,6 +97,35 @@ export async function initTheme(root?: HTMLElement): Promise<ThemeType> {
   }
 }
 
+/**
+ * Alternative bridge for panels that style against Cate's *raw* token names
+ * (`var(--surface-1)`, `var(--text-primary)`, …) rather than the kit's
+ * `--cate-*` contract: mirror every `theme.app` entry onto the root as
+ * `--<key>`, and set `data-cate-theme`. Use this OR `applyTheme`, not both.
+ */
+export function mirrorHostTokens(
+  theme: CateHostTheme | null | undefined,
+  root: HTMLElement = document.documentElement,
+): ThemeType {
+  const type: ThemeType = theme?.type === 'light' ? 'light' : 'dark'
+  root.setAttribute('data-cate-theme', type)
+  for (const [key, value] of Object.entries(theme?.app ?? {})) {
+    if (value) root.style.setProperty(`--${key}`, value)
+  }
+  return type
+}
+
+/** Read + mirror the raw host tokens once (see `mirrorHostTokens`). No-op off
+ *  Cate (no host), leaving the stylesheet fallbacks in place. */
+export async function initHostTokens(root?: HTMLElement): Promise<void> {
+  try {
+    const theme = await host()?.theme.get()
+    if (theme) mirrorHostTokens(theme, root)
+  } catch {
+    /* keep the stylesheet defaults */
+  }
+}
+
 /** Just the light/dark flag, for code paths that need the type but not the vars. */
 export async function readThemeType(): Promise<ThemeType> {
   try {

@@ -12,10 +12,7 @@
 import '../_kit/cate-kit.css'
 import './style.css'
 import { initTheme } from '../_kit/theme'
-
-// This panel's public base path (`/ext/<routeToken>/`) — the base for every
-// fetch URL. The shell is served at "/", so location.pathname is the prefix.
-const BASE = location.pathname.replace(/[^/]*$/, '')
+import { apiFetch } from '../_kit/api-client'
 
 interface TableRef {
   name: string
@@ -104,7 +101,7 @@ let queryPanelEl: HTMLElement
 // --- API -----------------------------------------------------------------------
 
 async function api<T>(pathAndQuery: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + pathAndQuery, {
+  const res = await apiFetch(pathAndQuery, {
     ...init,
     headers: { accept: 'application/json', ...(init?.headers || {}) },
   })

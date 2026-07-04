@@ -176,7 +176,7 @@ function initActions(): void {
       const res = await cate.canvas.createPanel('extension', {
         extensionId: 'cate.kitchensink',
         extensionPanelId: 'main',
-      } as unknown as Parameters<typeof cate.canvas.createPanel>[1])
+      })
       log('canvas.createPanel ->', res)
     } catch (err) {
       log('canvas.createPanel failed:', String(err))

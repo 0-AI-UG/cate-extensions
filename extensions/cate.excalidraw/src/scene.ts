@@ -6,7 +6,11 @@
 
 export type Theme = 'light' | 'dark'
 
-/** Map whatever `cate.theme.get()` returned (or a failure fallback) to a theme. */
+/** Map whatever `cate.theme.get()` returned (or a failure fallback) to a theme.
+ *  Excalidraw is full-bleed and renders no Cate chrome, so unlike kit-consuming
+ *  panels it needs only the light/dark flag (passed to <Excalidraw theme>), not
+ *  the kit's --cate-* CSS-var bridge — hence this stays local and DOM-free
+ *  (unit-tested in node) rather than importing the kit's theme module. */
 export function themeFromHost(theme: unknown): Theme {
   return isRecord(theme) && theme.type === 'light' ? 'light' : 'dark'
 }

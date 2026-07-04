@@ -1,0 +1,25 @@
+// =============================================================================
+// Client-side helpers for talking to a server-backed extension's own server.
+//
+// The webview is served at `/ext/<routeToken>/` and every request goes over a
+// RELATIVE URL so it tunnels back through Cate's proxy, which injects the
+// bearer token (the webview never holds it). Both the base-path derivation and
+// the no-store fetch were copy-pasted per extension; they live here now. Error
+// handling stays with each caller (some surface `{ ok, error }` inline, some
+// throw), so this only owns the transport, not the result contract.
+//
+// Browser-only (uses `location`/`fetch`); synced into each consumer's
+// `src/_kit/` by scripts/sync-kit.mjs.
+// =============================================================================
+
+/** This panel's public base path, e.g. "/ext/<routeToken>/". The shell is
+ *  served at "/", so `location.pathname`'s directory prefix is the base. */
+export function proxyBasePath(): string {
+  return location.pathname.replace(/[^/]*$/, '')
+}
+
+/** Fetch a relative path under the proxy base with no-store caching. Callers
+ *  own the response handling (JSON parse, error shape). */
+export function apiFetch(pathAndQuery: string, init?: RequestInit): Promise<Response> {
+  return fetch(proxyBasePath() + pathAndQuery, { cache: 'no-store', ...init })
+}

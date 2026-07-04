@@ -24,6 +24,15 @@ import fs from 'fs'
 import path from 'path'
 import { findSqliteFiles } from './scan'
 import { listTables, readTable, runQuery, clearCache, type TableInfo } from './db'
+import {
+  sendJson,
+  readBody,
+  isAuthorized,
+  sendBytes,
+  handleHealth,
+  sendUnauthorized,
+  PANEL_CSP,
+} from './_kitserver/http'
 
 const PORT = Number(process.env.PORT)
 const TOKEN = process.env.CATE_TOKEN || ''
@@ -82,29 +91,16 @@ function resolveDb(rel: unknown): DbEntry | null {
   return ensureIndex().get(rel) ?? null
 }
 
-// --- auth + responses ----------------------------------------------------------
-
-function authorized(req: http.IncomingMessage): boolean {
-  const header = String(req.headers['authorization'] || '')
-  return TOKEN.length > 0 && header === `Bearer ${TOKEN}`
-}
-
-// The shell renders SQLite data straight into the DOM (no iframe, no external
-// origins), so the policy is tight: own scripts + inline styles only.
-const SHELL_CSP =
-  "default-src 'self'; " +
-  "script-src 'self'; " +
-  "style-src 'self' 'unsafe-inline'; " +
-  "img-src 'self' data:; " +
-  "font-src 'self' data:; " +
-  "connect-src 'self'; " +
-  'frame-ancestors *'
+// --- static assets -------------------------------------------------------------
 
 interface StaticAsset {
   file: string
   type: string
 }
 
+// The panel's own bundle. URLs are remapped (/assets/app.js -> public/app.js)
+// rather than served straight from a root dir, so this stays a small table
+// instead of the kit's generic serveStaticFile.
 const SHELL_STATIC: Record<string, StaticAsset> = {
   '/assets/app.js': { file: 'public/app.js', type: 'text/javascript; charset=utf-8' },
   '/assets/app.css': { file: 'public/app.css', type: 'text/css; charset=utf-8' },
@@ -114,34 +110,10 @@ function readPublic(rel: string): Buffer {
   return fs.readFileSync(path.join(__dirname, rel))
 }
 
+// The shell renders SQLite data straight into the DOM (no iframe, no external
+// origins), so the kit's tight PANEL_CSP (own scripts + inline styles) applies.
 function sendShell(res: http.ServerResponse): void {
-  const html = readPublic('public/index.html')
-  res.writeHead(200, {
-    'Content-Type': 'text/html; charset=utf-8',
-    'Content-Security-Policy': SHELL_CSP,
-    'Cache-Control': 'no-store',
-    'X-Content-Type-Options': 'nosniff',
-  })
-  res.end(html)
-}
-
-function sendJson(res: http.ServerResponse, status: number, obj: unknown): void {
-  const body = JSON.stringify(obj)
-  res.writeHead(status, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(body),
-    'Cache-Control': 'no-store',
-  })
-  res.end(body)
-}
-
-function readBody(req: http.IncomingMessage): Promise<string> {
-  return new Promise((resolve) => {
-    const chunks: Buffer[] = []
-    req.on('data', (c: Buffer) => chunks.push(c))
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
-    req.on('error', () => resolve(''))
-  })
+  sendBytes(res, readPublic('public/index.html'), 'text/html; charset=utf-8', PANEL_CSP)
 }
 
 // --- API handlers --------------------------------------------------------------
@@ -226,15 +198,10 @@ const server = http.createServer(async (req, res) => {
   const pathname = url.pathname
 
   // Readiness probe, auth-exempt so Cate's probe (no token yet) succeeds.
-  if (pathname === '/health') {
-    res.writeHead(200, { 'Content-Type': 'text/plain' })
-    res.end('ok')
-    return
-  }
+  if (handleHealth(req, res)) return
 
-  if (!authorized(req)) {
-    res.writeHead(401, { 'Content-Type': 'text/plain' })
-    res.end('Unauthorized: missing or wrong Bearer token')
+  if (!isAuthorized(req, TOKEN)) {
+    sendUnauthorized(res)
     return
   }
 
@@ -248,13 +215,7 @@ const server = http.createServer(async (req, res) => {
   const asset = SHELL_STATIC[pathname]
   if (asset) {
     try {
-      const data = readPublic(asset.file)
-      res.writeHead(200, {
-        'Content-Type': asset.type,
-        'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff',
-      })
-      res.end(data)
+      sendBytes(res, readPublic(asset.file), asset.type)
     } catch {
       res.writeHead(404).end('Not found')
     }

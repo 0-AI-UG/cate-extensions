@@ -318,8 +318,15 @@ server.on('upgrade', (req, socket) => {
   )
 
   socket.on('data', (buf: Buffer) => {
-    const text = decodeTextFrame(buf)
-    if (text != null) socket.write(encodeTextFrame(`echo: ${text}`))
+    // A single TCP chunk may hold a partial/split frame; decodeTextFrame
+    // bounds-checks and returns null, but guard anyway so a malformed frame
+    // can never crash the process (demo echo, no multi-frame reassembly).
+    try {
+      const text = decodeTextFrame(buf)
+      if (text != null) socket.write(encodeTextFrame(`echo: ${text}`))
+    } catch {
+      socket.destroy()
+    }
   })
   socket.on('error', () => socket.destroy())
 })
@@ -333,12 +340,17 @@ function decodeTextFrame(buf: Buffer): string | null {
   let len = buf[1] & 0x7f
   let offset = 2
   if (len === 126) {
+    if (buf.length < 4) return null // extended-length header split across chunks
     len = buf.readUInt16BE(2)
     offset = 4
   } else if (len === 127) {
+    if (buf.length < 10) return null // extended-length header split across chunks
     len = Number(buf.readBigUInt64BE(2))
     offset = 10
   }
+  // Bail out if the declared payload (plus mask) runs past this chunk rather
+  // than reading out of bounds — this demo doesn't reassemble split frames.
+  if (buf.length < offset + (masked ? 4 : 0) + len) return null
   let payload: Buffer
   if (masked) {
     const mask = buf.slice(offset, offset + 4)

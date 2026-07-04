@@ -22,8 +22,6 @@
 // =============================================================================
 
 import http from 'http'
-import fs from 'fs'
-import path from 'path'
 import type { Manager } from './manager'
 import type { Aggregator } from './aggregate'
 import type { RegistrySearcher } from './registry-client'
@@ -34,8 +32,16 @@ import type {
   StateResponse,
   ToolCallResponse,
 } from '../shared/types'
-
-const BODY_LIMIT = 2_000_000
+import {
+  sendJson,
+  readBody,
+  readJsonObject,
+  isAuthorized,
+  handleHealth,
+  sendUnauthorized,
+  serveStaticFile,
+  PANEL_CSP,
+} from '../_kitserver/http'
 
 export interface AppOptions {
   manager: Manager
@@ -44,65 +50,6 @@ export interface AppOptions {
   token: string
   publicDir: string
 }
-
-// --- small utilities ------------------------------------------------------------
-
-function sendJson(res: http.ServerResponse, status: number, obj: unknown): void {
-  const body = JSON.stringify(obj)
-  res.writeHead(status, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(body),
-    'Cache-Control': 'no-store',
-  })
-  res.end(body)
-}
-
-function readBody(req: http.IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let data = ''
-    let size = 0
-    req.on('data', (chunk: Buffer) => {
-      size += chunk.length
-      if (size > BODY_LIMIT) {
-        reject(new Error('request body too large'))
-        req.destroy()
-        return
-      }
-      data += chunk.toString('utf8')
-    })
-    req.on('end', () => resolve(data))
-    req.on('error', reject)
-  })
-}
-
-async function readJsonObject(req: http.IncomingMessage): Promise<Record<string, unknown> | null> {
-  try {
-    const parsed: unknown = JSON.parse(await readBody(req))
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
-    return parsed as Record<string, unknown>
-  } catch {
-    return null
-  }
-}
-
-const MIME: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.woff2': 'font/woff2',
-  '.map': 'application/json; charset=utf-8',
-}
-
-const PAGE_CSP =
-  "default-src 'self'; " +
-  "script-src 'self'; " +
-  "style-src 'self' 'unsafe-inline'; " +
-  "img-src 'self' data:; " +
-  "font-src 'self' data:; " +
-  "connect-src 'self'; " +
-  'frame-ancestors *'
 
 // --- MCP result -> panel-friendly content blocks -----------------------------------
 
@@ -155,29 +102,13 @@ function callbackHtml(ok: boolean, message: string): string {
 export function createRequestHandler(opts: AppOptions): (req: http.IncomingMessage, res: http.ServerResponse) => void {
   const { manager, aggregator, registry, token, publicDir } = opts
 
-  function authorized(req: http.IncomingMessage): boolean {
-    const header = String(req.headers['authorization'] || '')
-    return token.length > 0 && header === `Bearer ${token}`
-  }
-
-  function resolveAsset(pathname: string): string | null {
-    const rel = pathname === '/' || pathname === '' ? 'index.html' : pathname.replace(/^\/+/, '')
-    const abs = path.normalize(path.join(publicDir, rel))
-    if (abs !== publicDir && !abs.startsWith(publicDir + path.sep)) return null
-    return abs
-  }
-
   async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const url = new URL(req.url || '/', 'http://127.0.0.1')
     const pathname = url.pathname
     const method = req.method || 'GET'
 
     // Readiness probe, auth-exempt so Cate's probe (no token yet) succeeds.
-    if (pathname === '/health') {
-      res.writeHead(200, { 'Content-Type': 'text/plain' })
-      res.end('ok')
-      return
-    }
+    if (handleHealth(req, res)) return
 
     // OAuth redirect target. The browser redirect carries no bearer token; the
     // single-use state parameter authenticates the flow instead.
@@ -202,9 +133,8 @@ export function createRequestHandler(opts: AppOptions): (req: http.IncomingMessa
     }
 
     // Everything else requires the injected bearer token.
-    if (!authorized(req)) {
-      res.writeHead(401, { 'Content-Type': 'text/plain' })
-      res.end('Unauthorized')
+    if (!isAuthorized(req, token)) {
+      sendUnauthorized(res)
       return
     }
 
@@ -393,27 +323,7 @@ export function createRequestHandler(opts: AppOptions): (req: http.IncomingMessa
       sendJson(res, 405, { ok: false, error: 'method not allowed' })
       return
     }
-    const asset = resolveAsset(pathname)
-    if (!asset) {
-      res.writeHead(403).end('Forbidden')
-      return
-    }
-    let data: Buffer
-    try {
-      data = fs.readFileSync(asset)
-    } catch {
-      res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found')
-      return
-    }
-    const ext = path.extname(asset).toLowerCase()
-    const headers: Record<string, string> = {
-      'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff',
-    }
-    if (ext === '.html') headers['Content-Security-Policy'] = PAGE_CSP
-    res.writeHead(200, headers)
-    res.end(data)
+    serveStaticFile(res, publicDir, pathname, PANEL_CSP)
   }
 
   return (req, res) => {

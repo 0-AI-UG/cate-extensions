@@ -61,16 +61,21 @@ export interface CateHost {
     openFile(path: string, opts?: { line?: number; column?: number }): Promise<unknown>
   }
   canvas: {
+    /** Open a new panel on the canvas. The host honors `position`, `url`,
+     *  `filePath`, `extensionId`, and `extensionPanelId`; it ignores anything
+     *  else (there is no `size`/`props` — mirrors the host's cate-host-api.d.ts). */
     createPanel(
       type: string,
       opts?: {
         position?: unknown
-        size?: unknown
-        props?: unknown
         /** Browser panels: the URL to open. */
         url?: string
         /** Editor panels: workspace-relative file to open. */
         filePath?: string
+        /** Extension panels: which extension to mount... */
+        extensionId?: string
+        /** ...and which of its declared panels. */
+        extensionPanelId?: string
       },
     ): Promise<unknown>
   }
