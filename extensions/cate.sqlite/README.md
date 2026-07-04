@@ -16,13 +16,17 @@ runs in-process on any Node ≥ 18, on local and remote workspaces alike.
   dirs) for SQLite files, verified by the `SQLite format 3` magic header — a
   stray non-SQLite `.db` file is never listed. Capped at 20 databases.
 - **Lists** each database's tables and views in a sidebar.
-- **Table view**: a bounded, paginated page of rows (25 / 100 / 500 per page),
-  with primary-key markers, column types, and click-to-sort headers.
-- **SQL box**: run read-only queries (`SELECT` / `WITH` / `EXPLAIN` / `PRAGMA`)
-  against the selected database; results are capped at 1000 rows. Writes and DDL
-  are rejected.
-- **Rescan** button re-scans the workspace and reloads (picks up new or changed
-  database files).
+- **Table view**: rows load in bounded chunks; a "Load more" row at the end of
+  the scrolled grid appends the next chunk (25 / 100 / 500, selectable), with
+  primary-key markers, column types, and click-to-sort headers. The sidebar is
+  collapsible to a slim rail (agent-panel idiom).
+- **SQL box** (button in the sidebar head): run read-only queries (`SELECT` /
+  `WITH` / `EXPLAIN` / `PRAGMA`) against the selected database; results are
+  capped at 1000 rows. Writes and DDL are rejected.
+- **Auto-detection**: the workspace is re-scanned when the panel regains
+  visibility and every 60 seconds while visible, so new database files appear
+  without manual chrome (the sidebar updates in place; the open table is never
+  reloaded underneath the reader).
 
 ## Notes
 

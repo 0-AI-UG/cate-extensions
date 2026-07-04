@@ -5,7 +5,7 @@
 import { useState } from 'react'
 import type { StateSnapshot } from '../../shared/types'
 import type { View } from '../main'
-import { BracesIcon, BroadcastIcon, CompassIcon, PlusIcon, StatusDot, openConfigFile } from './util'
+import { BracesIcon, BroadcastIcon, CompassIcon, PlusIcon, SidebarIcon, StatusDot, openConfigFile } from './util'
 
 const FILTER_THRESHOLD = 8
 
@@ -14,11 +14,13 @@ export function Sidebar({
   view,
   onSelect,
   onAdd,
+  onCollapse,
 }: {
   state: StateSnapshot
   view: View
   onSelect: (view: View) => void
   onAdd: () => void
+  onCollapse: () => void
 }) {
   const [filter, setFilter] = useState('')
   const f = filter.trim().toLowerCase()
@@ -27,6 +29,15 @@ export function Sidebar({
   return (
     <aside className="mcp-side">
       <div className="mcp-side__head">
+        <button
+          className="cate-iconbtn"
+          type="button"
+          title="Collapse sidebar"
+          aria-label="Collapse sidebar"
+          onClick={onCollapse}
+        >
+          <SidebarIcon />
+        </button>
         <span className="mcp-side__headspacer" />
         <button className="cate-iconbtn" type="button" title="Open mcp.json" onClick={() => openConfigFile(state.configPath)}>
           <BracesIcon />

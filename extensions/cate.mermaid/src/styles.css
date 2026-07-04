@@ -1,0 +1,173 @@
+/* Panel-local layout on top of the kit's tokens and components. */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+.mmd-app {
+  height: 100%;
+  position: relative;
+}
+
+/* --- floating options button + popover -------------------------------------- */
+
+.mmd-overlay {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mmd-status {
+  color: var(--cate-muted);
+  font-size: 11px;
+  background: var(--cate-bg);
+  border-radius: var(--cate-radius-sm);
+  padding: 2px 6px;
+}
+
+.mmd-status:empty {
+  display: none;
+}
+
+.mmd-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 168px;
+  padding: 8px 10px;
+  background: var(--cate-bg);
+  border: 1px solid var(--cate-border-strong);
+  border-radius: var(--cate-radius-md, 8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mmd-popover[hidden] {
+  display: none;
+}
+
+.mmd-popover__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mmd-popover__label {
+  flex: 1 1 auto;
+  color: var(--cate-fg-secondary);
+  font-size: 11.5px;
+}
+
+.mmd-select {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  font-size: 11.5px;
+  color: var(--cate-fg-secondary);
+}
+
+/* --- split pane ------------------------------------------------------------ */
+
+.mmd-split {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+/* Keep the textarea from swallowing pointer events mid-drag. */
+.mmd-split--dragging {
+  cursor: col-resize;
+  user-select: none;
+}
+.mmd-split--dragging .mmd-source,
+.mmd-split--dragging .mmd-right {
+  pointer-events: none;
+}
+
+.mmd-divider {
+  flex: 0 0 5px;
+  cursor: col-resize;
+  background: var(--cate-border);
+  background-clip: content-box;
+  padding: 0 2px; /* 1px visible line, 5px grab target */
+  touch-action: none;
+}
+
+.mmd-divider:hover,
+.mmd-split--dragging .mmd-divider {
+  background-color: var(--cate-border-strong);
+}
+
+.mmd-source {
+  flex: 0 0 42%; /* overridden inline by the restored split ratio */
+  min-width: 180px;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 12px 14px;
+  background: var(--cate-bg-side);
+  color: var(--cate-fg);
+  font: var(--cate-mono);
+  font-size: 12.5px;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+
+.mmd-source::placeholder {
+  color: var(--cate-muted);
+}
+
+.mmd-source:focus {
+  box-shadow: inset 0 0 0 1px var(--cate-border-strong);
+}
+
+/* --- preview ---------------------------------------------------------------- */
+
+.mmd-right {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--cate-bg);
+}
+
+.mmd-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 16px;
+}
+
+.mmd-preview > svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mmd-preview--empty {
+  align-items: center;
+  color: var(--cate-muted);
+  font-size: 12px;
+}
+
+.mmd-error {
+  flex: 0 0 auto;
+  margin: 0 12px 12px;
+  font: var(--cate-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 30%;
+  overflow: auto;
+}

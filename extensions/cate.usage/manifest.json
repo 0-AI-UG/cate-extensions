@@ -1,0 +1,26 @@
+{
+  "id": "cate.usage",
+  "name": "Agent Usage",
+  "version": "1.1.0",
+  "description": "Agent usage and cost dashboard powered by ccusage. Reads the local Claude Code data (~/.claude) on the machine running the extension server and shows cost and tokens for today, this week, this month, and all time, a daily cost/token timeline, and a per-model cost split. No data leaves the machine.",
+  "panels": [
+    {
+      "id": "dashboard",
+      "label": "Agent Usage",
+      "icon": "<svg viewBox=\"0 0 16 16\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M2.5 13.5h11\" stroke=\"currentColor\" fill=\"none\" stroke-linecap=\"round\"/><path d=\"M4.5 13.5v-3M8 13.5V5M11.5 13.5V8\" stroke=\"currentColor\" fill=\"none\" stroke-linecap=\"round\"/><path d=\"M4 5.5l2.8-2 2.6 1.4 2.6-2.4\" stroke=\"currentColor\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+      "defaultSize": {
+        "width": 940,
+        "height": 680
+      }
+    }
+  ],
+  "server": {
+    "command": "node dist/server.js",
+    "readyPath": "/health",
+    "portEnv": "PORT"
+  },
+  "cateApi": [
+    "theme",
+    "storage"
+  ]
+}

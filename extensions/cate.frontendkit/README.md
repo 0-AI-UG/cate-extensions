@@ -4,6 +4,10 @@ A frontend-only Cate extension. It ships static assets (`index.html`, `app.js`,
 `style.css`) and no server. Cate's proxy serves the files and the panel talks to
 Cate through the injected `window.cate` bridge.
 
+It is a dev-only reference (`"dev": true` in the manifest): CI builds and
+validates it, but it stays out of the published catalog. Try it via sideload
+(Settings, Extensions, "Add local folder...") or a local catalog build.
+
 It uses:
 
 - `cate.version`, `cate.panel.id`, `cate.workspace.get`, `cate.theme.get`

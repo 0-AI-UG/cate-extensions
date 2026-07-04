@@ -1,0 +1,22 @@
+{
+  "id": "cate.mermaid",
+  "name": "Mermaid",
+  "version": "1.1.0",
+  "description": "A split-pane Mermaid diagram editor: text source on the left, live-rendered diagram on the right, resizable divider between. Theme picker, autosaves per panel, exports SVG and PNG.",
+  "frontend": "dist/index.html",
+  "panels": [
+    {
+      "id": "editor",
+      "label": "Mermaid",
+      "icon": "<svg viewBox=\"0 0 16 16\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"1.5\" y=\"1.5\" width=\"6\" height=\"4\" rx=\"1\" fill=\"none\" stroke=\"currentColor\" stroke-linejoin=\"round\"/><rect x=\"8.5\" y=\"10.5\" width=\"6\" height=\"4\" rx=\"1\" fill=\"none\" stroke=\"currentColor\" stroke-linejoin=\"round\"/><path d=\"M4.5 5.5v5a2 2 0 0 0 2 2h1.5\" fill=\"none\" stroke=\"currentColor\"/><path d=\"M6.5 11l1.5 1.5L6.5 14\" fill=\"none\" stroke=\"currentColor\" stroke-linejoin=\"round\"/></svg>",
+      "defaultSize": {
+        "width": 860,
+        "height": 560
+      }
+    }
+  ],
+  "cateApi": [
+    "storage",
+    "theme"
+  ]
+}

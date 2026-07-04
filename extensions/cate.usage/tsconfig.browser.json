@@ -1,0 +1,14 @@
+{
+  // Browser panel typecheck: src/public/app.ts + the shared kit (src/_kit).
+  // esbuild does the actual bundling (build.mjs); this config is typecheck
+  // only (--noEmit), so it just needs to resolve the kit + CSS imports.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "types": [],
+    "noEmit": true
+  },
+  "include": ["src/public/**/*.ts", "src/shape.ts", "src/_kit/**/*.ts"]
+}

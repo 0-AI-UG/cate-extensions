@@ -1,7 +1,7 @@
 {
   "id": "cate.sqlite",
   "name": "SQLite",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Browse and query the SQLite databases in your workspace, right on the Cate canvas. Self-contained: reads .db / .sqlite / .sqlite3 files with a bundled WASM engine, so nothing is installed or spawned. Lists tables and views, shows sortable paginated rows, and runs read-only SQL.",
   "panels": [
     {
@@ -21,7 +21,6 @@
   },
   "cateApi": [
     "theme",
-    "ui",
     "storage",
     "workspace.read"
   ]

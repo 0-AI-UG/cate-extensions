@@ -1,0 +1,14 @@
+{
+  // Node server typecheck. The runnable dist/server.js is produced by esbuild
+  // (build.mjs bundles the ccusage library in); this config is typecheck-only
+  // (--noEmit).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2020"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src/server.ts", "src/usage.ts", "src/shape.ts", "src/cache.ts", "src/_kitserver/**/*.ts"]
+}

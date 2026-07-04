@@ -139,6 +139,15 @@
   padding: var(--cate-gap);
   gap: var(--cate-gap);
 }
+/* Collapsed-sidebar reopen row: hugs the top-left, cancels most of the main
+ * padding so the icon sits where the sidebar head's toggle was. */
+.mcp-main__bar {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin: -6px 0 calc(-1 * var(--cate-gap) + 4px) -6px;
+}
+
 .mcp-view {
   display: flex;
   flex-direction: column;
@@ -179,6 +188,35 @@
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
+}
+/* ⋯ menu at the right end of the actions row: rare/destructive actions
+   (Disable / Edit / Delete) live in a small popover (minimal-UI pattern). */
+.mcp-more {
+  position: relative;
+  display: inline-flex;
+  margin-left: auto;
+}
+.mcp-more__popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 120px;
+  padding: 8px 10px;
+  background: var(--cate-bg);
+  border: 1px solid var(--cate-border-strong);
+  border-radius: var(--cate-radius-md, 8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mcp-more__popover[hidden] {
+  display: none;
+}
+.mcp-more__item {
+  justify-content: flex-start;
+  text-align: left;
 }
 .mcp-detail__meta {
   color: var(--cate-muted);
@@ -660,13 +698,6 @@
   font: var(--cate-mono);
 }
 .mcp-note {
-  color: var(--cate-fg-secondary);
-}
-.mcp-check {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
   color: var(--cate-fg-secondary);
 }
 .mcp-inline-error {
