@@ -1,6 +1,6 @@
 {
   "name": "cate.sqlite",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "SQLite viewer, a self-contained server-backed Cate extension. Reads the workspace's SQLite files with a bundled WASM engine (no external install) and serves a browse/query UI, reverse-proxied and loopback-bound.",
   "scripts": {

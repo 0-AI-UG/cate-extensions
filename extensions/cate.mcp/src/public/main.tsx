@@ -30,7 +30,7 @@ import { EndpointView } from './components/EndpointView'
 import { AddEditDrawer, type AddPrefill } from './components/AddEditDrawer'
 import { PlaygroundDrawer, type PlayItem } from './components/PlaygroundDrawer'
 import type { HistoryEntry } from './components/Playground'
-import { BroadcastIcon, openConfigFile } from './components/util'
+import { BroadcastIcon, SidebarIcon, openConfigFile } from './components/util'
 import '../_kit/cate-kit.css'
 import './styles.css'
 import { initTheme } from '../_kit/theme'
@@ -63,6 +63,7 @@ function App() {
   const [view, setView] = useState<View | null>(null)
   const [drawer, setDrawer] = useState<Drawer>(null)
   const [history, setHistory] = useState<(HistoryEntry & { server: string })[]>([])
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const serialRef = useRef<number | null>(null)
 
   const load = useCallback(async (force = false): Promise<void> => {
@@ -140,9 +141,32 @@ function App() {
 
   return (
     <div className="cate-app mcp-shell">
-      <Sidebar state={state} view={effective} onSelect={selectView} onAdd={() => setDrawer({ kind: 'add' })} />
+      {sidebarOpen && (
+        <Sidebar
+          state={state}
+          view={effective}
+          onSelect={selectView}
+          onAdd={() => setDrawer({ kind: 'add' })}
+          onCollapse={() => setSidebarOpen(false)}
+        />
+      )}
 
       <main className="mcp-main">
+        {/* Agent-panel idiom: when the sidebar is collapsed, its toggle moves
+         *  to the top-left of the main pane. */}
+        {!sidebarOpen && (
+          <div className="mcp-main__bar">
+            <button
+              className="cate-iconbtn"
+              type="button"
+              title="Open sidebar"
+              aria-label="Open sidebar"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <SidebarIcon />
+            </button>
+          </div>
+        )}
         {fetchError && <div className="mcp-errorcard">Connection lost, retrying: {fetchError}</div>}
         {state.configError && (
           <div className="mcp-errorcard">

@@ -1,9 +1,10 @@
 // Main-area server detail: compact header (name, status word, transport),
-// one row of small lifecycle actions, the needs-auth connect flow, inventory
+// one row of small lifecycle actions (rare/destructive ones behind a ⋯
+// popover at the row's right end), the needs-auth connect flow, inventory
 // sections (28px rows that open the playground modal), and collapsed Log /
 // History sections. Copy stays out of the chrome; tooltips carry the detail.
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ServerSnapshot } from '../../shared/types'
 import { oauthStart, serverAction, deleteServer, type ServerAction } from '../api'
 import type { HistoryEntry } from './Playground'
@@ -61,6 +62,69 @@ function AuthBlock({ server }: { server: ServerSnapshot }) {
       )}
       <InlineError error={error} />
     </div>
+  )
+}
+
+/** ⋯ menu for rare/destructive server actions (minimal-UI popover pattern). */
+function MoreMenu({
+  items,
+}: {
+  items: { label: string; title?: string; disabled?: boolean; onClick: () => void }[]
+}) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onPointerDown(e: PointerEvent): void {
+      if (e.target instanceof Node && wrapRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
+    function onKeyDown(e: KeyboardEvent): void {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  return (
+    <span className="mcp-more" ref={wrapRef}>
+      <button
+        className="cate-iconbtn"
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="More server actions"
+        title="More server actions"
+        onClick={() => setOpen((v) => !v)}
+      >
+        &#x22ef;
+      </button>
+      {open && (
+        <div className="mcp-more__popover" role="menu">
+          {items.map((item) => (
+            <button
+              key={item.label}
+              className="cate-btn cate-btn--small mcp-more__item"
+              type="button"
+              role="menuitem"
+              disabled={item.disabled}
+              title={item.title}
+              onClick={() => {
+                setOpen(false)
+                item.onClick()
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
   )
 }
 
@@ -178,23 +242,24 @@ export function ServerView({
                 </button>
               </>
             )}
-            <button
-              className="cate-btn cate-btn--small"
-              type="button"
-              disabled={busy}
-              title="Keep in config, never start"
-              onClick={() => void act('disable')}
-            >
-              Disable
-            </button>
           </>
         )}
-        <button className="cate-btn cate-btn--small" type="button" onClick={onEdit}>
-          Edit
-        </button>
-        <button className="cate-btn cate-btn--small" type="button" disabled={busy} onClick={() => setConfirmDelete(true)}>
-          Delete
-        </button>
+        <MoreMenu
+          items={[
+            ...(server.status !== 'disabled'
+              ? [
+                  {
+                    label: 'Disable',
+                    title: 'Keep in config, never start',
+                    disabled: busy,
+                    onClick: () => void act('disable'),
+                  },
+                ]
+              : []),
+            { label: 'Edit', onClick: onEdit },
+            { label: 'Delete', disabled: busy, onClick: () => setConfirmDelete(true) },
+          ]}
+        />
       </div>
 
       {confirmDelete && (

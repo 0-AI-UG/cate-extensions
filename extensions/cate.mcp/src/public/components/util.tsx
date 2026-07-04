@@ -112,6 +112,15 @@ function icon(path: React.ReactNode) {
 
 export const PlusIcon = () => icon(<path d="M8 3.5v9M3.5 8h9" />)
 
+/** Sidebar toggle glyph (agent-panel idiom: rect with a left-column divider). */
+export const SidebarIcon = () =>
+  icon(
+    <>
+      <rect x="1.75" y="3" width="12.5" height="10" rx="1.5" />
+      <path d="M6 3v10" />
+    </>,
+  )
+
 export const CopyIcon = () =>
   icon(
     <>

@@ -1,9 +1,17 @@
 // SQLite viewer panel. External script (CSP-safe, no inline JS). It:
 //   - themes the chrome from cate.theme.get() via the shared kit
 //   - lists the workspace databases + their tables/views (GET /api/databases)
-//   - shows a bounded, sortable, paginated page of any table (GET /api/table)
-//   - runs read-only SQL against a database (POST /api/query)
-//   - rescans the workspace on demand (POST /api/rescan)
+//   - shows a bounded, sortable page of any table (GET /api/table) that grows
+//     via a "Load more" row at the bottom of the scrolled grid (with a
+//     chunk-size select); no footer bar, no pagination chrome
+//   - runs read-only SQL against a database (POST /api/query); the SQL toggle
+//     lives in the sidebar head
+//   - re-detects databases automatically (POST /api/rescan on panel focus and
+//     every 60s while visible; the sidebar updates in place and the open table
+//     is never reloaded under the reader)
+//
+// The sidebar is collapsible (agent-panel idiom): a sidebar-glyph toggle in
+// its head collapses it to a slim rail holding the same toggle.
 //
 // All fetch URLs are relative so they resolve under /ext/<routeToken>/ and
 // tunnel through Cate's proxy, which injects the bearer; the page never holds a
@@ -42,14 +50,15 @@ interface TablePage {
   dir: 'asc' | 'desc'
 }
 
-const RESCAN_ICON =
-  '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M13.7 1.8v2.8h-2.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-
 const CLOSE_ICON =
   '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
+// Sidebar toggle glyph (agent-panel idiom: rect with a left-column divider).
+const SIDEBAR_ICON =
+  '<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.75" y="3" width="12.5" height="10" rx="1.5"/><path d="M6 3v10"/></svg>'
 
 const SELECTION_KEY = 'selection'
-const PAGE_SIZES = [25, 100, 500]
+const CHUNK_SIZES = [25, 100, 500]
+const RESCAN_INTERVAL_MS = 60_000
 
 // --- tiny DOM helpers ----------------------------------------------------------
 
@@ -69,7 +78,7 @@ function clear(node: HTMLElement): void {
 }
 
 function iconButton(svg: string, label: string): HTMLButtonElement {
-  const btn = el('button', 'sq-icon-btn') as HTMLButtonElement
+  const btn = el('button', 'cate-iconbtn') as HTMLButtonElement
   btn.type = 'button'
   btn.setAttribute('aria-label', label)
   btn.title = label
@@ -85,16 +94,15 @@ function iconButton(svg: string, label: string): HTMLButtonElement {
 
 let databases: DbRow[] = []
 let selection: { db: string; table: string } | null = null
+/** The open table with rows ACCUMULATED across "Load more" chunks. */
 let current: TablePage | null = null
-let limit = 100
+/** Chunk size for the next load (initial page and each "Load more"). */
+let chunk = 100
 let queryOpen = false
 
 // DOM roots (built once in mount()).
 let dbListEl: HTMLElement
-let titleEl: HTMLElement
-let countEl: HTMLElement
 let gridWrapEl: HTMLElement
-let pagerEl: HTMLElement
 let queryToggleBtn: HTMLButtonElement
 let queryPanelEl: HTMLElement
 
@@ -110,6 +118,25 @@ async function api<T>(pathAndQuery: string, init?: RequestInit): Promise<T> {
     throw new Error(body?.error || `Request failed (${res.status})`)
   }
   return body
+}
+
+async function fetchChunk(
+  offset: number,
+  orderBy: string | null,
+  dir: 'asc' | 'desc',
+): Promise<TablePage> {
+  if (!selection) throw new Error('No table selected')
+  const params = new URLSearchParams({
+    db: selection.db,
+    table: selection.table,
+    limit: String(chunk),
+    offset: String(offset),
+  })
+  if (orderBy) {
+    params.set('orderBy', orderBy)
+    params.set('dir', dir)
+  }
+  return api<TablePage>('api/table?' + params.toString())
 }
 
 // --- rendering: sidebar --------------------------------------------------------
@@ -203,116 +230,165 @@ function buildGrid(
   return table
 }
 
-function renderTablePage(): void {
-  clear(gridWrapEl)
-  clear(pagerEl)
-  if (!current) return
+/** End-of-grid row: loaded count, and (while more rows exist) a chunk-size
+ *  select + "Load more" button. Lives INSIDE the scroll container, so it is
+ *  reached by scrolling to the bottom. */
+function buildLoadMoreRow(): HTMLElement {
+  const row = el('div', 'sq-loadmore')
+  if (!current) return row
+  const loaded = current.rows.length
+  const label =
+    loaded < current.total
+      ? `${current.table} · ${loaded} of ${current.total} rows`
+      : `${current.table} · ${current.total} row${current.total === 1 ? '' : 's'}`
+  row.appendChild(el('span', 'sq-loadmore__count', label))
 
+  if (loaded < current.total) {
+    const sel = el('select', 'cate-select sq-select') as HTMLSelectElement
+    sel.setAttribute('aria-label', 'Rows to load')
+    sel.title = 'Rows to load'
+    for (const s of CHUNK_SIZES) {
+      const opt = el('option', undefined, String(s)) as HTMLOptionElement
+      opt.value = String(s)
+      if (s === chunk) opt.selected = true
+      sel.appendChild(opt)
+    }
+    sel.addEventListener('change', () => {
+      chunk = Number(sel.value) || 100
+    })
+
+    const more = el('button', 'sq-btn', 'Load more') as HTMLButtonElement
+    more.type = 'button'
+    more.addEventListener('click', () => {
+      more.disabled = true
+      void loadMore().finally(() => {
+        more.disabled = false
+      })
+    })
+    row.append(sel, more)
+  }
+  return row
+}
+
+function renderTable(): void {
+  clear(gridWrapEl)
+  if (!current) return
   const grid = buildGrid(current.columns, current.rows, {
     by: current.orderBy,
     dir: current.dir,
     onSort: (col) => void toggleSort(col),
   })
-  gridWrapEl.appendChild(grid)
-
-  titleEl.textContent = current.table
-  const from = current.total === 0 ? 0 : current.offset + 1
-  const to = Math.min(current.offset + current.limit, current.total)
-  countEl.textContent = `${from}–${to} of ${current.total}`
-
-  // Pager.
-  const prev = el('button', 'sq-btn', 'Prev') as HTMLButtonElement
-  prev.type = 'button'
-  prev.disabled = current.offset <= 0
-  prev.addEventListener('click', () => void loadPage(Math.max(0, current!.offset - current!.limit)))
-
-  const next = el('button', 'sq-btn', 'Next') as HTMLButtonElement
-  next.type = 'button'
-  next.disabled = to >= current.total
-  next.addEventListener('click', () => void loadPage(current!.offset + current!.limit))
-
-  const sizeSel = el('select') as HTMLSelectElement
-  for (const s of PAGE_SIZES) {
-    const opt = el('option', undefined, String(s)) as HTMLOptionElement
-    opt.value = String(s)
-    if (s === limit) opt.selected = true
-    sizeSel.appendChild(opt)
-  }
-  sizeSel.addEventListener('change', () => {
-    limit = Number(sizeSel.value) || 100
-    void loadPage(0)
-  })
-
-  pagerEl.append(prev, next, el('span', undefined, 'rows per page:'), sizeSel)
+  gridWrapEl.append(grid, buildLoadMoreRow())
 }
 
 // --- actions -------------------------------------------------------------------
 
-async function loadDatabases(): Promise<void> {
-  const data = await api<{ databases: DbRow[] }>('api/databases')
-  databases = data.databases || []
-  // Keep the selection if it still exists; otherwise fall back to the first table.
-  if (selection && !databases.some((d) => d.relPath === selection!.db && d.tables.some((t) => t.name === selection!.table))) {
+/** Reconcile a fresh database list into the UI: redraw the sidebar, drop a
+ *  selection that no longer exists (falling back to the first table), but do
+ *  NOT reload the open table — background rescans must never yank the grid
+ *  out from under the reader. */
+async function applyDatabases(found: DbRow[]): Promise<void> {
+  databases = found
+  if (
+    selection &&
+    !databases.some(
+      (d) => d.relPath === selection!.db && d.tables.some((t) => t.name === selection!.table),
+    )
+  ) {
     selection = null
     current = null
   }
   renderSidebar()
-  if (!selection) {
-    const firstDb = databases.find((d) => d.tables.length > 0)
-    if (firstDb) {
-      await selectTable(firstDb.relPath, firstDb.tables[0].name)
-      return
+  // Selection intact: nothing else to touch (selectTable re-renders the query
+  // panel on change; rebuilding it here would wipe SQL mid-typing on a
+  // background rescan).
+  if (selection) return
+  const firstDb = databases.find((d) => d.tables.length > 0)
+  if (firstDb) await selectTable(firstDb.relPath, firstDb.tables[0].name)
+  else showEmptyMain()
+}
+
+async function loadDatabases(): Promise<void> {
+  const data = await api<{ databases: DbRow[] }>('api/databases')
+  await applyDatabases(data.databases || [])
+}
+
+/** Re-detect workspace databases. Runs silently on focus/interval; `manual`
+ *  (the empty state's "Check again") also reports the outcome inline. */
+let scanning = false
+async function refreshDatabases(manual: boolean, report?: (msg: string) => void): Promise<void> {
+  if (scanning) return
+  scanning = true
+  try {
+    const data = await api<{ databases: DbRow[] }>('api/rescan', { method: 'POST' })
+    await applyDatabases(data.databases || [])
+    if (manual) {
+      report?.(`Found ${databases.length} database${databases.length === 1 ? '' : 's'}`)
     }
-    showEmptyMain()
-  } else {
-    renderQueryPanel()
+  } catch {
+    if (manual) report?.('Rescan failed')
+  } finally {
+    scanning = false
   }
 }
 
 function showEmptyMain(): void {
   clear(gridWrapEl)
-  clear(pagerEl)
-  titleEl.textContent = ''
-  countEl.textContent = ''
   const empty = el('div', 'sq-empty')
   empty.appendChild(el('strong', undefined, 'No SQLite databases found'))
   empty.appendChild(
     document.createTextNode(
-      'Add a .db / .sqlite / .sqlite3 file to this workspace and press Rescan.',
+      'Add a .db / .sqlite / .sqlite3 file to this workspace — it is picked up automatically.',
     ),
   )
+  const check = el('button', 'sq-btn sq-empty-btn', 'Check again') as HTMLButtonElement
+  check.type = 'button'
+  const note = el('div', 'sq-empty-note')
+  check.addEventListener('click', () => {
+    check.disabled = true
+    void refreshDatabases(true, (msg) => {
+      note.textContent = msg
+    }).finally(() => {
+      check.disabled = false
+    })
+  })
+  empty.append(check, note)
   gridWrapEl.appendChild(empty)
   queryToggleBtn.disabled = true
 }
 
 async function selectTable(db: string, table: string): Promise<void> {
   selection = { db, table }
-  limit = limit || 100
   queryToggleBtn.disabled = false
   rememberSelection()
   renderSidebar()
   renderQueryPanel()
-  await loadPage(0, /*asc*/ null, 'asc')
+  await loadTable(null, 'asc')
 }
 
-async function loadPage(offset: number, orderBy?: string | null, dir?: 'asc' | 'desc'): Promise<void> {
+/** (Re)load the first chunk — on table select and on sort changes. */
+async function loadTable(orderBy: string | null, dir: 'asc' | 'desc'): Promise<void> {
   if (!selection) return
-  const params = new URLSearchParams({
-    db: selection.db,
-    table: selection.table,
-    limit: String(limit),
-    offset: String(offset),
-  })
-  // Preserve the current sort unless the caller overrides it.
-  const ob = orderBy !== undefined ? orderBy : current?.orderBy ?? null
-  const d = dir ?? current?.dir ?? 'asc'
-  if (ob) {
-    params.set('orderBy', ob)
-    params.set('dir', d)
-  }
   try {
-    current = await api<TablePage>('api/table?' + params.toString())
-    renderTablePage()
+    current = await fetchChunk(0, orderBy, dir)
+    renderTable()
+    gridWrapEl.scrollTop = 0
+  } catch (err) {
+    clear(gridWrapEl)
+    gridWrapEl.appendChild(el('div', 'sq-empty', err instanceof Error ? err.message : String(err)))
+  }
+}
+
+/** Append the next chunk, preserving the reader's scroll position. */
+async function loadMore(): Promise<void> {
+  if (!selection || !current) return
+  try {
+    const page = await fetchChunk(current.rows.length, current.orderBy, current.dir)
+    current.rows.push(...page.rows)
+    current.total = page.total
+    const scrollTop = gridWrapEl.scrollTop
+    renderTable()
+    gridWrapEl.scrollTop = scrollTop
   } catch (err) {
     clear(gridWrapEl)
     gridWrapEl.appendChild(el('div', 'sq-empty', err instanceof Error ? err.message : String(err)))
@@ -327,21 +403,7 @@ function toggleSort(col: string): void {
     if (current.dir === 'asc') dir = 'desc'
     else orderBy = null // asc -> desc -> unsorted
   }
-  void loadPage(0, orderBy, dir)
-}
-
-async function rescan(): Promise<void> {
-  const data = await api<{ databases: DbRow[] }>('api/rescan', { method: 'POST' })
-  databases = data.databases || []
-  if (selection && !databases.some((d) => d.relPath === selection!.db && d.tables.some((t) => t.name === selection!.table))) {
-    selection = null
-    current = null
-  }
-  renderSidebar()
-  if (selection) await loadPage(current?.offset ?? 0)
-  else if (databases.some((d) => d.tables.length > 0)) await loadDatabases()
-  else showEmptyMain()
-  cate?.ui.notify(`Found ${databases.length} database${databases.length === 1 ? '' : 's'}.`, 'info').catch(() => {})
+  void loadTable(orderBy, dir)
 }
 
 // --- query panel ---------------------------------------------------------------
@@ -467,34 +529,35 @@ function mount(root: HTMLElement): void {
   clear(root)
   const app = el('div', 'sq-root')
 
-  // Sidebar.
+  // Collapsed-sidebar rail: just the reopen toggle (agent-panel idiom).
+  const rail = el('div', 'sq-rail')
+  rail.hidden = true
+  const railToggle = iconButton(SIDEBAR_ICON, 'Open sidebar')
+  rail.appendChild(railToggle)
+
+  // Sidebar: head (collapse toggle + SQL) above the database/table list.
   const side = el('aside', 'sq-side')
-  const sideHead = el('div', 'sq-side-head')
-  sideHead.appendChild(el('span', undefined, 'Databases'))
-  const rescanBtn = iconButton(RESCAN_ICON, 'Rescan workspace for SQLite files')
-  rescanBtn.addEventListener('click', () => {
-    rescanBtn.disabled = true
-    void rescan().finally(() => {
-      rescanBtn.disabled = false
-    })
-  })
-  sideHead.appendChild(rescanBtn)
+  const sideHead = el('div', 'sq-side__head')
+  const sideToggle = iconButton(SIDEBAR_ICON, 'Collapse sidebar')
+  queryToggleBtn = el('button', 'cate-btn sq-sql-btn', 'SQL') as HTMLButtonElement
+  queryToggleBtn.type = 'button'
+  queryToggleBtn.title = 'Run read-only SQL'
+  queryToggleBtn.addEventListener('click', () => toggleQuery())
+  sideHead.append(sideToggle, el('span', 'sq-side__spacer'), queryToggleBtn)
   dbListEl = el('div', 'sq-db-list')
   side.append(sideHead, dbListEl)
 
-  // Main pane.
-  const main = el('main', 'sq-main')
-  const toolbar = el('div', 'sq-toolbar')
-  titleEl = el('span', 'sq-title')
-  countEl = el('span', 'sq-count')
-  const spacer = el('span', 'sq-toolbar-spacer')
-  queryToggleBtn = el('button', 'sq-btn', 'SQL') as HTMLButtonElement
-  queryToggleBtn.type = 'button'
-  queryToggleBtn.addEventListener('click', () => toggleQuery())
-  toolbar.append(titleEl, countEl, spacer, queryToggleBtn)
+  const setSidebarOpen = (open: boolean): void => {
+    side.hidden = !open
+    rail.hidden = open
+  }
+  sideToggle.addEventListener('click', () => setSidebarOpen(false))
+  railToggle.addEventListener('click', () => setSidebarOpen(true))
 
+  // Main pane: just the grid; the "Load more" row lives at the end of the
+  // scrolled content.
+  const main = el('main', 'sq-main')
   gridWrapEl = el('div', 'sq-grid-wrap')
-  pagerEl = el('div', 'sq-pager')
 
   // The SQL runner lives in a modal overlay, mounted at the app root so it
   // floats above the whole panel. Escape dismisses it.
@@ -507,8 +570,8 @@ function mount(root: HTMLElement): void {
     }
   })
 
-  main.append(toolbar, gridWrapEl, pagerEl)
-  app.append(side, main, queryPanelEl)
+  main.append(gridWrapEl)
+  app.append(rail, side, main, queryPanelEl)
   root.appendChild(app)
 }
 
@@ -524,7 +587,17 @@ async function boot(): Promise<void> {
       el('div', 'sq-empty', err instanceof Error ? err.message : String(err)),
     )
   }
-  cate?.panel.setTitle('SQLite').catch(() => {})
+  // `cate` is an undeclared global outside Cate; `?.` alone doesn't guard that.
+  if (typeof cate !== 'undefined') cate?.panel.setTitle('SQLite').catch(() => {})
 }
+
+// New databases appear without manual chrome: re-detect when the panel becomes
+// visible and on a slow interval while it stays visible.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void refreshDatabases(false)
+})
+setInterval(() => {
+  if (document.visibilityState === 'visible') void refreshDatabases(false)
+}, RESCAN_INTERVAL_MS)
 
 void boot()

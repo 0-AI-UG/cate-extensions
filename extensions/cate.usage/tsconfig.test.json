@@ -1,0 +1,13 @@
+{
+  // Type-check config for the Vitest suite (pure report-shaping and cache
+  // helpers; no ccusage import, no network, no filesystem).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2020"],
+    "types": ["node", "vitest/globals"],
+    "noEmit": true
+  },
+  "include": ["src/shape.ts", "src/cache.ts", "src/shape.test.ts", "src/cache.test.ts"]
+}

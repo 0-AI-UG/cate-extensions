@@ -132,7 +132,9 @@ body {
   overflow: hidden;
 }
 
-/* Agent-panel header idiom: thin 40px bar on the panel surface, no border. */
+/* Agent-panel header idiom: thin 40px bar on the panel surface, no border.
+   Controls only — never repeat the extension name here; Cate's panel chrome
+   (CanvasNode title bar / dock tab) already shows it. */
 .cate-topbar {
   display: flex;
   align-items: center;
@@ -141,9 +143,6 @@ body {
   padding: 4px 10px;
   background: transparent;
   flex: 0 0 auto;
-}
-.cate-topbar__title {
-  font-weight: 500;
 }
 .cate-topbar__spacer {
   margin-left: auto;

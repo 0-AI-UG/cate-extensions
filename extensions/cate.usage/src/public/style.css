@@ -1,0 +1,356 @@
+/* cate.usage dashboard. Single-screen, timeline-first panel layout: nothing
+ * scrolls; the chart flexes to the panel height. Layout only; every color is a
+ * --cate-* token from the kit so light/dark theming comes from theme.ts +
+ * cate-kit.css. */
+
+/* --- load progress --------------------------------------------------------------- */
+
+/* Determinate 2px bar pinned to the panel top, driven by GET /api/status
+ * (loaders done / total) while a load is in flight. */
+.us-loadbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 30;
+  pointer-events: none;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--cate-accent) 15%, transparent);
+}
+
+.us-loadbar[hidden] {
+  display: none;
+}
+
+.us-loadbar > i,
+.us-track > i {
+  display: block;
+  height: 100%;
+  width: 4%;
+  border-radius: 2px;
+  background: var(--cate-accent);
+  transition: width 0.35s ease;
+  animation: us-pulse 1.2s ease-in-out infinite;
+}
+
+/* Subtle pulse so the bar reads as alive between step changes. */
+@keyframes us-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* First-load state: centered track with the step label underneath. */
+.us-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--cate-muted);
+  font-size: 11.5px;
+}
+
+.us-track {
+  position: relative;
+  width: 220px;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--cate-accent) 18%, transparent);
+}
+
+/* --- topline: stat strip + status pill ------------------------------------------ */
+
+.us-topline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 6px;
+  flex: 0 0 auto;
+}
+
+.us-stats {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  /* When the strip overflows, fade the cut edge instead of clipping mid-number. */
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 20px), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 20px), transparent);
+}
+
+.us-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.us-stat__label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--cate-muted) 70%, transparent);
+}
+
+.us-stat__row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.us-stat__value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cate-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.us-stat__sub {
+  font-size: 10.5px;
+  color: var(--cate-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.us-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--cate-muted);
+  font-size: 11px;
+  border-radius: var(--cate-radius-sm);
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.us-status:empty {
+  display: none;
+}
+
+/* Offline-pricing warning: the kit pill's warn dot, shown persistently. */
+.us-status--warn::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--cate-warning);
+}
+
+/* --- body: fixed-height column, nothing scrolls -------------------------------- */
+
+.us-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 12px;
+  overflow: hidden;
+}
+
+/* --- hero chart card -------------------------------------------------------------- */
+
+.us-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.us-chartcard {
+  flex: 1 1 auto;
+}
+
+.us-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex: 0 0 auto;
+}
+
+.us-card__title {
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.us-card__spacer {
+  margin-left: auto;
+}
+
+.us-card__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Footer strip under the chart: "By model" chips. */
+.us-card__foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--cate-border);
+}
+
+.us-foot__label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--cate-muted) 70%, transparent);
+  margin-right: 2px;
+}
+
+.us-modelchip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  background: var(--cate-hover);
+  border-radius: var(--cate-radius-xs);
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--cate-fg-secondary);
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.us-modelchip b {
+  font-weight: 500;
+  color: var(--cate-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.us-modelchip span {
+  font-weight: 600;
+  color: var(--cate-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.us-modelchip i {
+  font-style: normal;
+  color: var(--cate-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- segmented metric/range toggles ---------------------------------------------- */
+
+.us-seg {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--cate-hover);
+  border-radius: var(--cate-radius-sm);
+  padding: 2px;
+}
+
+.us-seg button {
+  border: none;
+  background: transparent;
+  color: var(--cate-fg-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--cate-radius-xs);
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.us-seg button:hover {
+  color: var(--cate-fg);
+}
+
+.us-seg button[aria-pressed='true'] {
+  background: var(--cate-bg-card);
+  color: var(--cate-fg);
+}
+
+/* --- chart ------------------------------------------------------------------------ */
+
+.us-chart svg {
+  display: block;
+  width: 100%;
+}
+
+.us-chart .us-grid {
+  stroke: var(--cate-border-strong);
+  stroke-width: 1;
+}
+
+.us-chart .us-tick {
+  fill: var(--cate-muted);
+  font-size: 10px;
+}
+
+.us-chart .us-bar {
+  fill: var(--cate-accent);
+}
+
+.us-chart .us-bar-hit {
+  fill: transparent;
+}
+
+.us-chart .us-bar.is-hover {
+  fill: var(--cate-accent-light);
+}
+
+.us-chart .us-peak {
+  fill: var(--cate-fg-secondary);
+  font-size: 10px;
+}
+
+/* Tooltip: values lead, label follows. */
+.us-tip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--cate-bg-elev);
+  border: 1px solid var(--cate-border-strong);
+  border-radius: var(--cate-radius-sm);
+  box-shadow: var(--cate-shadow-pop);
+  padding: 6px 9px;
+  font-size: 11px;
+  color: var(--cate-fg-secondary);
+  white-space: nowrap;
+  z-index: 4;
+}
+
+.us-tip__value {
+  color: var(--cate-fg);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* --- states -------------------------------------------------------------------------- */
+
+.us-center {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.us-empty-paths {
+  text-align: left;
+}
+
+@media (max-width: 620px) {
+  .us-stats {
+    gap: 14px;
+  }
+}

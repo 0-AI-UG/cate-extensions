@@ -97,7 +97,7 @@ export function App() {
       onDragLeave={onDragLeave}
     >
       {state.status === 'ready' ? (
-        <ConversationView convo={state.convo} fileName={state.fileName} />
+        <ConversationView convo={state.convo} />
       ) : (
         <DropZone
           error={state.status === 'error' ? state.error : undefined}

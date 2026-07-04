@@ -49,7 +49,6 @@ export function AddEditDrawer({
   const [env, setEnv] = useState<KVRow[]>(kvRowsFromRecord(initial?.env ?? prefill?.env))
   const [url, setUrl] = useState(initial?.url ?? prefill?.url ?? '')
   const [headers, setHeaders] = useState<KVRow[]>(kvRowsFromRecord(initial?.headers ?? prefill?.headers))
-  const [disabled, setDisabled] = useState(initial?.disabled === true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -68,7 +67,9 @@ export function AddEditDrawer({
         return
       }
     }
-    const config: ServerConfigInput = { disabled }
+    // Enable/disable lives in the server view (actions row + ⋯ menu); editing
+    // preserves the current state, adding starts enabled.
+    const config: ServerConfigInput = { disabled: initial?.disabled === true }
     if (kind === 'stdio') {
       if (command.trim() === '') {
         setError('command is required for a stdio server')
@@ -204,11 +205,6 @@ export function AddEditDrawer({
               </div>
             </>
           )}
-
-          <label className="cate-field mcp-check" title="Kept in config, never started">
-            <input type="checkbox" checked={disabled} onChange={(e) => setDisabled(e.target.checked)} />
-            <span>Disabled</span>
-          </label>
 
           <InlineError error={error} />
         </div>
