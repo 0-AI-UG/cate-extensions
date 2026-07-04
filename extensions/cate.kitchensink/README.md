@@ -4,6 +4,10 @@ A server-backed Cate extension. Authored in TypeScript and compiled to `dist/`
 by `npm run build`; dependency-free at runtime (Node `http` + raw WebSocket
 frames), so the shipped `.tgz` carries only compiled JS.
 
+It is a dev-only reference (`"dev": true` in the manifest): CI builds and
+validates it, but it stays out of the published catalog. Try it via sideload
+(Settings, Extensions, "Add local folder...") or a local catalog build.
+
 It uses:
 
 - `cate.version`, `cate.panel.id`, `cate.workspace.get`, `cate.theme.get`
