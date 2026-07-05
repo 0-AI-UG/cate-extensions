@@ -3,7 +3,14 @@
 Catalog repo for [Cate](https://github.com/0-AI-UG/cate) extensions. Each folder
 under `extensions/` is one extension. CI builds each into a `.tgz` and uploads a
 catalog index plus the artifacts to a rolling GitHub Release; Cate ships the
-index URL as its default catalog source.
+index URL as its default catalog source:
+
+```
+https://github.com/0-AI-UG/cate-extensions/releases/download/catalog/index.json
+```
+
+(To re-add it on an installation where it was removed: Settings, Extensions,
+Catalog sources, add the URL, then Refresh catalog.)
 
 ## Extensions
 
@@ -16,91 +23,13 @@ index URL as its default catalog source.
 | `cate.sqlite` | server-backed | Read-only SQLite browser for workspace databases (bundled WASM engine, nothing installed or spawned). |
 | `cate.usage` | server-backed | Agent usage and cost dashboard powered by ccusage. |
 
-Two dev-only reference apps (`"dev": true` in the manifest: built and validated
-by CI, excluded from the published catalog) demonstrate the two shapes end to
-end:
-
-- `cate.frontendkit`: frontend-only (static assets, no server).
-- `cate.kitchensink`: server-backed (HTTP/WebSocket server, CATE_API, agent).
+`cate.frontendkit` (frontend-only) and `cate.kitchensink` (server-backed) are
+dev-only reference apps demonstrating the two shapes end to end (`"dev": true`
+in the manifest: built and validated by CI, excluded from the published
+catalog).
 
 The shared UI kit at [`kit/`](kit/) keeps the extensions visually coherent with
 Cate; see its README for how it syncs into each extension.
-
-## Adding the catalog to Cate
-
-Cate ships this index URL as a default catalog source, so nothing to configure.
-To add it on an installation where it was removed, open Settings, Extensions,
-Catalog sources, and add:
-
-```
-https://github.com/0-AI-UG/cate-extensions/releases/download/catalog/index.json
-```
-
-Then Refresh catalog. Listed extensions can be installed and enabled from the
-same screen.
-
-## Publishing
-
-The trust boundary is PR review: changes land via pull request, and merging to
-`main` publishes them.
-
-- On a pull request, CI runs `./build.sh` to validate that every extension
-  builds.
-- On push to `main`, CI runs `./build.sh` with `CATALOG_BASE_URL` pointing at
-  the rolling `catalog` release, then uploads `index.json` and every artifact
-  tarball as assets on that one GitHub Release (`gh release upload --clobber`).
-  GitHub serves them over its CDN:
-  - `https://github.com/0-AI-UG/cate-extensions/releases/download/catalog/index.json`
-  - `https://github.com/0-AI-UG/cate-extensions/releases/download/catalog/<id>-<version>.tgz`
-
-Nothing is committed back to the repo and no GitHub Pages deploy is involved.
-Stale tarballs from retired extensions may linger as release assets; that is
-harmless because `index.json` (the source of truth) never references them.
-
-## Index shape
-
-A catalog source is an `http(s)://` URL; Cate fetches the index JSON:
-
-```json
-{
-  "extensions": [
-    {
-      "manifest": { "...": "full ExtensionManifest" },
-      "artifactUrl": "https://github.com/0-AI-UG/cate-extensions/releases/download/catalog/<id>-<version>.tgz",
-      "sha256": "<hex>",
-      "description": "..."
-    }
-  ]
-}
-```
-
-For a remote index, `artifactUrl` must be an absolute `https://` URL; Cate
-treats any URL without an `http(s)` scheme as a local filesystem path. The
-`.tgz` has `manifest.json` at its root.
-
-## Local development
-
-```bash
-./build.sh
-```
-
-With `CATALOG_BASE_URL` unset, this writes `dist/catalog/index.json` with
-`file://` artifact URLs pointing at the on-disk `dist/artifacts/*.tgz`. Point
-Cate's catalog source at the absolute path to that file:
-
-```
-/path/to/cate-extensions/dist/catalog/index.json
-```
-
-`build.sh` recreates `dist/` fresh each run: it syncs the kit, compiles every
-extension that has a `package.json` build script, tars each `extensions/<id>/`
-into `dist/artifacts/<id>-<version>.tgz`, then runs `scripts/gen-catalog.mjs` to
-compute each sha256 and emit the index.
-
-For a faster loop on a single extension, skip the catalog entirely and sideload
-the extension folder in Cate: Settings, Extensions, "Add local folder...". On a
-local workspace the folder is served in place, so edits only need a rebuild and
-a panel reload.
 
 ## Repo layout
 
@@ -116,34 +45,59 @@ cate-extensions/
   dist/                       # build output (gitignored)
 ```
 
-## Adding an extension
+## Local development
 
-1. Create `extensions/<your-id>/` with a `manifest.json` (and a `README.md`
-   whose first line is the catalog description if the manifest has no
-   `description`).
-2. If it needs compiling, add a `package.json` with a `build` script; `build.sh`
-   runs `npm install` + `npm run build`, and when a `dist/` exists the artifact
-   ships only `manifest.json` + `dist/`. Otherwise the whole folder ships as-is.
-3. To build on the shared UI kit, add the id to `KIT_CONSUMERS` (and
-   `SERVER_CONSUMERS` for the Node HTTP scaffolding) in `scripts/sync-kit.mjs`,
-   run `node scripts/sync-kit.mjs`, and commit the synced `src/_kit/` copies.
-   Never edit `src/_kit/` directly; CI fails on stale copies.
-4. Open a PR. CI validates the build. Expect the review to double as a security
-   review: servers run unsandboxed on user machines.
-5. On merge to `main` it is published automatically. For later changes, bump
-   `version` in `manifest.json` (and `package.json`); the artifact name embeds
-   it.
+```bash
+./build.sh
+```
 
-### Manifest fields
+With `CATALOG_BASE_URL` unset, this writes `dist/catalog/index.json` with
+`file://` artifact URLs pointing at the on-disk `dist/artifacts/*.tgz`. Point
+Cate's catalog source at the absolute path to that file. Local catalog entries
+re-provision on panel open, so edits land without version bumps.
 
-| Field | Purpose |
-| --- | --- |
-| `id` | Unique extension id (e.g. `cate.kitchensink`); also the artifact name prefix. Must match `^[A-Za-z0-9][A-Za-z0-9._-]*$` (it becomes a filesystem path). |
-| `name` | Display name shown in the catalog. |
-| `version` | SemVer; the artifact is `<id>-<version>.tgz`. Bump it for every published change. |
-| `panels` | `[{ id, label, icon?, defaultSize? }]`, the panels the extension contributes. Required, non-empty; `icon` is an inline SVG string, `defaultSize` is `{ width, height }`. |
-| `frontend` | Entry HTML for frontend-only extensions (e.g. `dist/index.html`). Ignored when `server` is present: the server serves its own frontend. |
-| `server` | Optional, for server-backed extensions: `{ command, readyPath, portEnv }`. `readyPath` defaults to `/health`, `portEnv` to `PORT`. |
-| `cateApi` | Scopes the extension uses (default-deny, host-enforced): `workspace.read`, `theme`, `ui`, `editor.read`/`editor.write`, `storage`, `canvas`, `files.drop`, `agent`. A bare namespace like `editor` grants its sub-scopes. |
-| `description` | Optional; overrides the README first line in the catalog. |
-| `dev` | `true` keeps the extension out of the published catalog (still built and validated); for reference apps. |
+For a faster loop on a single extension, skip the catalog entirely and sideload
+the extension folder in Cate: Settings, Extensions, "Add local folder...". On a
+local workspace the folder is served in place, so edits only need a rebuild and
+a panel reload.
+
+## Contributing an extension
+
+How to build one (the manifest, `cateApi` scopes, the `window.cate` host API,
+the server contract, the kit) is documented in the Cate repo:
+[`docs/extensions.md`](https://github.com/0-AI-UG/cate/blob/main/docs/extensions.md)
+for the extension system and
+[`skills/cate-extension/SKILL.md`](https://github.com/0-AI-UG/cate/blob/main/skills/cate-extension/SKILL.md)
+for the field-by-field authoring guide. What this repo adds:
+
+- One folder per extension: `extensions/<id>/` with a `manifest.json` and a
+  `README.md` whose first line is the catalog description fallback.
+- If it needs compiling, expose a `build` script in `package.json`; `build.sh`
+  runs `npm install` + `npm run build`, and when a `dist/` exists the artifact
+  ships only `manifest.json` + `dist/` (otherwise the whole folder ships
+  as-is).
+- To build on the shared UI kit, add the id to `KIT_CONSUMERS` (and
+  `SERVER_CONSUMERS` for the Node HTTP scaffolding) in `scripts/sync-kit.mjs`,
+  run `node scripts/sync-kit.mjs`, and commit the synced `src/_kit/` copies.
+  Never edit `src/_kit/` directly; CI fails on stale copies.
+- `./build.sh` must pass end to end, then open a PR. Expect the review to
+  double as a security review: servers run unsandboxed on user machines.
+- For later changes, bump `version` in `manifest.json` (and `package.json`);
+  the artifact name embeds it.
+
+## Publishing
+
+The trust boundary is PR review: changes land via pull request, and merging to
+`main` publishes them.
+
+- On a pull request, CI runs `./build.sh` to validate that every extension
+  builds.
+- On push to `main`, CI runs `./build.sh` with `CATALOG_BASE_URL` pointing at
+  the rolling `catalog` release, then uploads `index.json` (generated by
+  `scripts/gen-catalog.mjs`: manifest, artifact URL, sha256, and description
+  per extension) and every artifact tarball as assets on that one GitHub
+  Release (`gh release upload --clobber`). GitHub serves them over its CDN.
+
+Nothing is committed back to the repo and no GitHub Pages deploy is involved.
+Stale tarballs from retired extensions may linger as release assets; that is
+harmless because `index.json` (the source of truth) never references them.
