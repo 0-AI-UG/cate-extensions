@@ -50,6 +50,39 @@ interface CatePanel {
   setTitle(title: string): Promise<void>
 }
 
+/** One open browser panel, as reported by `cate.browser.list()`. */
+interface CateBrowserTab {
+  panelId: string
+  title: string
+  url: string
+  focused: boolean
+}
+
+/** Navigation state of a browser panel, from `cate.browser.current()`. */
+interface CateBrowserState {
+  url: string
+  title: string
+  canGoBack: boolean
+  canGoForward: boolean
+  loading: boolean
+}
+
+/** One interactable element in an accessibility `snapshot()`. `ref` is opaque and
+ *  only valid for the snapshot it came from. */
+interface CateBrowserRef {
+  ref: string
+  role: string
+  name: string
+  value?: string
+}
+
+/** Accessibility snapshot of a browser panel, from `cate.browser.snapshot()`. */
+interface CateBrowserSnapshot {
+  url: string
+  title: string
+  refs: CateBrowserRef[]
+}
+
 interface CateHost {
   /** API version int, for feature detection. */
   version(): Promise<number>
@@ -95,6 +128,21 @@ interface CateHost {
     run(prompt: string): Promise<AgentTurnResult | { error: string }>
     /** Abort the in-flight turn of this extension's session. */
     cancel(): Promise<unknown>
+  }
+  /** Drive Cate's browser panels (requires the `browser` scope). These panels
+   *  hold the user's real, logged-in browser session, so treat the access as
+   *  sensitive. `panelId` targets a panel; omit it for the focused one. */
+  browser: {
+    list(): Promise<CateBrowserTab[]>
+    open(opts: { url: string; panelId?: string }): Promise<{ panelId: string; url: string }>
+    back(opts?: { panelId?: string }): Promise<{ ok: true }>
+    forward(opts?: { panelId?: string }): Promise<{ ok: true }>
+    reload(opts?: { panelId?: string }): Promise<{ ok: true }>
+    current(opts?: { panelId?: string }): Promise<CateBrowserState>
+    screenshot(opts?: { panelId?: string }): Promise<{ path: string }>
+    snapshot(opts?: { panelId?: string }): Promise<CateBrowserSnapshot>
+    click(opts: { ref: string; panelId?: string }): Promise<{ ok: true }>
+    type(opts: { ref: string; text: string; panelId?: string }): Promise<{ ok: true }>
   }
   storage: CateHostStorage
 }

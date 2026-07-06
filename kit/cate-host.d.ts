@@ -52,6 +52,40 @@ export interface CateDroppedFile {
   truncated?: boolean
 }
 
+/** One open browser panel, as reported by `cate.browser.list()`. */
+export interface CateBrowserTab {
+  panelId: string
+  title: string
+  url: string
+  focused: boolean
+}
+
+/** Navigation state of a browser panel, from `cate.browser.current()`. */
+export interface CateBrowserState {
+  url: string
+  title: string
+  canGoBack: boolean
+  canGoForward: boolean
+  loading: boolean
+}
+
+/** One interactable element in an accessibility `snapshot()`. `ref` is an opaque
+ *  handle to pass back to `click`/`type`; only valid for the snapshot it came
+ *  from (re-snapshot after a navigation or mutation). */
+export interface CateBrowserRef {
+  ref: string
+  role: string
+  name: string
+  value?: string
+}
+
+/** Accessibility snapshot of a browser panel, from `cate.browser.snapshot()`. */
+export interface CateBrowserSnapshot {
+  url: string
+  title: string
+  refs: CateBrowserRef[]
+}
+
 export interface CateHost {
   version(): Promise<number>
   panel: CatePanel
@@ -87,6 +121,27 @@ export interface CateHost {
     dispose(sessionId: string): Promise<unknown>
     run(prompt: string): Promise<AgentTurnResult | { error: string }>
     cancel(): Promise<unknown>
+  }
+  /** Drive Cate's browser panels (requires the `browser` scope). These panels
+   *  hold the user's real, logged-in browser session — cookies, auth, and all —
+   *  so anything the user can reach while signed in, the extension can too. Treat
+   *  it accordingly. Every method targets a single panel; `panelId` picks it, and
+   *  when omitted the host uses the focused (or only) browser panel. `snapshot`
+   *  returns opaque element `ref`s to feed back to `click`/`type`; re-snapshot
+   *  after any navigation because refs don't survive it. `screenshot` returns a
+   *  host filesystem `path` (a webview guest can't read it directly; a
+   *  server-backed extension can — see docs/extensions.md). */
+  browser: {
+    list(): Promise<CateBrowserTab[]>
+    open(opts: { url: string; panelId?: string }): Promise<{ panelId: string; url: string }>
+    back(opts?: { panelId?: string }): Promise<{ ok: true }>
+    forward(opts?: { panelId?: string }): Promise<{ ok: true }>
+    reload(opts?: { panelId?: string }): Promise<{ ok: true }>
+    current(opts?: { panelId?: string }): Promise<CateBrowserState>
+    screenshot(opts?: { panelId?: string }): Promise<{ path: string }>
+    snapshot(opts?: { panelId?: string }): Promise<CateBrowserSnapshot>
+    click(opts: { ref: string; panelId?: string }): Promise<{ ok: true }>
+    type(opts: { ref: string; text: string; panelId?: string }): Promise<{ ok: true }>
   }
   storage: CateHostStorage
 }
