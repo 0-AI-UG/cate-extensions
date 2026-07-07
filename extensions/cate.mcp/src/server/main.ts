@@ -15,7 +15,9 @@ import http from 'http'
 import path from 'path'
 import { Manager } from './manager'
 import { Aggregator } from './aggregate'
+import { ActivityLog } from './activity'
 import { RegistryClient } from './registry-client'
+import { AgentInstaller } from './agent-install'
 import { createRequestHandler } from './http-app'
 
 const PORT = Number(process.env.PORT)
@@ -33,14 +35,17 @@ if (!WORKSPACE_ROOT) {
 }
 
 const manager = new Manager({ workspaceRoot: WORKSPACE_ROOT, port: PORT, token: TOKEN })
-const aggregator = new Aggregator(manager)
+const activityLog = new ActivityLog()
+const aggregator = new Aggregator(manager, activityLog)
 manager.onInventoryChange(() => aggregator.notifyListsChanged())
 const registry = new RegistryClient()
+const installer = new AgentInstaller(WORKSPACE_ROOT)
 
 const handler = createRequestHandler({
   manager,
   aggregator,
   registry,
+  installer,
   token: TOKEN,
   publicDir: path.join(__dirname, 'public'),
 })

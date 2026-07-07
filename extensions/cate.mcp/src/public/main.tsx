@@ -25,12 +25,14 @@ import type { StateSnapshot } from '../shared/types'
 import { fetchState } from './api'
 import { Sidebar } from './components/Sidebar'
 import { ServerView } from './components/ServerView'
+import { DashboardView } from './components/DashboardView'
 import { DiscoverView } from './components/DiscoverView'
 import { EndpointView } from './components/EndpointView'
 import { AddEditDrawer, type AddPrefill } from './components/AddEditDrawer'
 import { PlaygroundDrawer, type PlayItem } from './components/PlaygroundDrawer'
 import type { HistoryEntry } from './components/Playground'
 import { BroadcastIcon, SidebarIcon, openConfigFile } from './components/util'
+import { serializeView, parseView, type View } from './view'
 import '../_kit/cate-kit.css'
 import './styles.css'
 import { initTheme } from '../_kit/theme'
@@ -38,24 +40,11 @@ import { initTheme } from '../_kit/theme'
 const POLL_MS = 2000
 const VIEW_KEY = 'activeTab'
 
-export type View = { kind: 'server'; name: string } | { kind: 'discover' } | { kind: 'endpoint' }
-
 type Drawer =
   | { kind: 'add'; prefill?: AddPrefill }
   | { kind: 'edit'; name: string }
   | { kind: 'play'; server: string; item: PlayItem }
   | null
-
-function serializeView(view: View): string {
-  return view.kind === 'server' ? `server:${view.name}` : view.kind
-}
-
-function parseView(raw: unknown): View | null {
-  if (typeof raw !== 'string') return null
-  if (raw === 'discover' || raw === 'endpoint') return { kind: raw }
-  if (raw.startsWith('server:')) return { kind: 'server', name: raw.slice('server:'.length) }
-  return null // legacy 'servers' value falls through to auto-select
-}
 
 function App() {
   const [state, setState] = useState<StateSnapshot | null>(null)
@@ -125,14 +114,9 @@ function App() {
     )
   }
 
-  // Effective view: honor the selection when it still resolves, otherwise
-  // fall back to the first server (spec: auto-select when servers exist).
-  const effective: View =
-    view && (view.kind !== 'server' || state.servers.some((s) => s.name === view.name))
-      ? view
-      : state.servers.length > 0
-        ? { kind: 'server', name: state.servers[0].name }
-        : { kind: 'server', name: '' }
+  // Effective view: honor an explicit selection (a missing server still resolves
+  // to the "No MCP servers" empty state below), otherwise open on the Dashboard.
+  const effective: View = view ?? { kind: 'dashboard' }
 
   const detailServer =
     effective.kind === 'server' ? (state.servers.find((s) => s.name === effective.name) ?? null) : null
@@ -179,6 +163,7 @@ function App() {
           </div>
         )}
 
+        {effective.kind === 'dashboard' && <DashboardView state={state} />}
         {effective.kind === 'discover' && (
           <DiscoverView
             onAdd={(prefill) => setDrawer({ kind: 'add', prefill })}
