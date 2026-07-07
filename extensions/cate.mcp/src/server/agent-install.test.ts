@@ -31,7 +31,7 @@ describe('AgentInstaller.list', () => {
   it('lists all agents; two are unsupported with a reason', () => {
     const agents = new AgentInstaller(tmp).list(EP)
     expect(agents.map((a) => a.id).sort()).toEqual(
-      ['antigravity', 'cate-agent', 'claude-code', 'codex', 'cursor', 'opencode', 'pi'].sort(),
+      ['agent-panel', 'antigravity', 'claude-code', 'codex', 'cursor', 'opencode', 'pi'].sort(),
     )
     const anti = agents.find((a) => a.id === 'antigravity')!
     const pi = agents.find((a) => a.id === 'pi')!
@@ -39,7 +39,7 @@ describe('AgentInstaller.list', () => {
     expect(anti.reason).toBeTruthy()
     expect(pi.supported).toBe(false)
     expect(agents.filter((a) => a.supported).map((a) => a.id).sort()).toEqual(
-      ['cate-agent', 'claude-code', 'codex', 'cursor', 'opencode'],
+      ['agent-panel', 'claude-code', 'codex', 'cursor', 'opencode'],
     )
   })
 
@@ -99,13 +99,13 @@ describe('Claude Code (.mcp.json)', () => {
   })
 })
 
-describe('Cate Agent (.pi/mcp.json, read by pi-mcp-adapter)', () => {
+describe('Agent panel (.pi/mcp.json, read by pi-mcp-adapter)', () => {
   it('installs a url entry the adapter can read', () => {
     const inst = new AgentInstaller(tmp)
-    expect(inst.install('cate-agent', EP)).toEqual({ ok: true })
+    expect(inst.install('agent-panel', EP)).toEqual({ ok: true })
     const entry = JSON.parse(read('.pi/mcp.json')).mcpServers[ENTRY_NAME]
     expect(entry).toEqual({ url: EP.url, headers: { Authorization: `Bearer ${EP.token}` } })
-    expect(statusOf(inst, 'cate-agent').installed).toBe(true)
+    expect(statusOf(inst, 'agent-panel').installed).toBe(true)
   })
 })
 

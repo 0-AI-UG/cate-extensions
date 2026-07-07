@@ -228,13 +228,13 @@ function unsupported(id: string, label: string, relPath: string, reason: string)
 // --- registry ---------------------------------------------------------------
 
 const ADAPTERS: Adapter[] = [
-  // Cate's own in-app agent (pi). pi has no native MCP, so this targets the
+  // The in-app agent panel (pi). pi has no native MCP, so this targets the
   // `pi-mcp-adapter` package's project-local pi config (`.pi/mcp.json`): a
   // top-level mcpServers map where a remote server is `url` + `headers`. The
   // adapter reads it on session start and proxies each server's tools.
   jsonAdapter({
-    id: 'cate-agent',
-    label: 'Cate Agent',
+    id: 'agent-panel',
+    label: 'Agent panel',
     relPath: '.pi/mcp.json',
     sectionKey: 'mcpServers',
     buildEntry: (ep) => ({ url: ep.url, headers: bearer(ep.token) }),
