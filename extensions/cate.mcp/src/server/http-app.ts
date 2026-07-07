@@ -9,6 +9,7 @@
 //                                       the single-use `state` parameter)
 //   GET  /                              panel HTML + static assets
 //   GET  /api/state?known=<serial>      config + runtime status + inventories
+//   GET  /api/activity?limit=<n>        recent tool calls through /mcp + summary
 //   POST /api/servers                   add server        { name, config }
 //   PATCH  /api/servers/:name           update server     { config }
 //   DELETE /api/servers/:name           delete server
@@ -17,6 +18,9 @@
 //   POST /api/resources/read            { server, uri }
 //   POST /api/prompts/get               { server, prompt, args }
 //   GET  /api/registry/search?q=&cursor=
+//   GET  /api/agents                    install status per coding agent
+//   POST /api/agents/install            { id }   write endpoint into agent config
+//   POST /api/agents/uninstall          { id }   remove endpoint from agent config
 //   POST /api/oauth/start               { server }
 //   ALL  /mcp                           aggregated MCP endpoint (streamable HTTP)
 // =============================================================================
@@ -25,6 +29,7 @@ import http from 'http'
 import type { Manager } from './manager'
 import type { Aggregator } from './aggregate'
 import type { RegistrySearcher } from './registry-client'
+import type { AgentInstaller } from './agent-install'
 import type {
   ContentBlockView,
   PromptGetResponse,
@@ -47,6 +52,7 @@ export interface AppOptions {
   manager: Manager
   aggregator: Aggregator
   registry: RegistrySearcher
+  installer: AgentInstaller
   token: string
   publicDir: string
 }
@@ -100,7 +106,13 @@ function callbackHtml(ok: boolean, message: string): string {
 // --- the app --------------------------------------------------------------------------
 
 export function createRequestHandler(opts: AppOptions): (req: http.IncomingMessage, res: http.ServerResponse) => void {
-  const { manager, aggregator, registry, token, publicDir } = opts
+  const { manager, aggregator, registry, installer, token, publicDir } = opts
+
+  /** The current aggregated endpoint as an install target (url + bare token). */
+  function currentEndpoint(): { url: string; token: string } {
+    const ep = manager.getState().endpoint
+    return { url: ep.url, token: ep.authHeader.replace(/^Bearer /, '') }
+  }
 
   async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const url = new URL(req.url || '/', 'http://127.0.0.1')
@@ -164,6 +176,17 @@ export function createRequestHandler(opts: AppOptions): (req: http.IncomingMessa
       }
       const payload: StateResponse = { serial: manager.serial, state: manager.getState() }
       sendJson(res, 200, payload)
+      return
+    }
+
+    // --- activity feed -----------------------------------------------------------
+    // Separate from /api/state on purpose: recording a call must not bump the
+    // manager serial, so the state poll stays quiet while this churns.
+    if (pathname === '/api/activity' && method === 'GET') {
+      const raw = Number(url.searchParams.get('limit') ?? NaN)
+      const limit = Number.isFinite(raw) && raw > 0 ? raw : undefined
+      const log = aggregator.activityLog
+      sendJson(res, 200, { ok: true, entries: log.recent(limit), summary: log.summary() })
       return
     }
 
@@ -298,6 +321,25 @@ export function createRequestHandler(opts: AppOptions): (req: http.IncomingMessa
     if (pathname === '/api/registry/search' && method === 'GET') {
       const result = await registry.search(url.searchParams.get('q') ?? '', url.searchParams.get('cursor'))
       sendJson(res, result.ok ? 200 : 502, result)
+      return
+    }
+
+    // --- install into coding agents -----------------------------------------------------
+    if (pathname === '/api/agents' && method === 'GET') {
+      sendJson(res, 200, { ok: true, agents: installer.list(currentEndpoint()) })
+      return
+    }
+    if ((pathname === '/api/agents/install' || pathname === '/api/agents/uninstall') && method === 'POST') {
+      const body = await readJsonObject(req)
+      if (!body || typeof body.id !== 'string') {
+        sendJson(res, 400, { ok: false, error: 'body must be { id }' })
+        return
+      }
+      const result =
+        pathname === '/api/agents/install'
+          ? installer.install(body.id, currentEndpoint())
+          : installer.uninstall(body.id)
+      sendJson(res, result.ok ? 200 : 400, result)
       return
     }
 

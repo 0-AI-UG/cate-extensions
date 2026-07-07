@@ -598,6 +598,50 @@
   white-space: nowrap;
 }
 
+/* Install-into-agents list on the Endpoint screen: label, muted path, actions. */
+.mcp-agents {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mcp-agentrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 2px 8px;
+  border-radius: var(--cate-radius-sm);
+  min-width: 0;
+}
+.mcp-agentrow:hover {
+  background: var(--cate-hover);
+}
+.mcp-agentrow__label {
+  flex: 0 0 auto;
+  width: 110px;
+  font-size: 13px;
+  color: var(--cate-fg);
+}
+.mcp-agentrow__path {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--cate-muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-agentrow__actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mcp-agentrow__ok {
+  color: var(--cate-success);
+  font-size: 12px;
+}
+
 /* --- modal (agent popover spec: surface-3, strong hairline, 12px radius, deep
    shadow) — centered over a scrim, capped to the panel viewport ---------------------- */
 
@@ -686,6 +730,178 @@
 .mcp-seg__btn--active {
   color: var(--cate-fg);
   background: var(--cate-hover-strong);
+}
+
+/* --- dashboard (default view) ----------------------------------------------------------- */
+
+.mcp-dash {
+  gap: 12px;
+}
+
+/* Endpoint strip: live dot + label + url, with a server/tool count pinned right. */
+.mcp-dash__strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--cate-border);
+  border-radius: var(--cate-radius);
+  background: var(--cate-bg-elev);
+}
+.mcp-dash__striplabel {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cate-fg);
+}
+.mcp-dash__stripurl {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--cate-muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-dash__stripcount {
+  flex: 0 0 auto;
+  color: var(--cate-fg-secondary);
+  font-size: 11px;
+}
+
+/* Stat row: compact figure tiles that reflow to the panel width. */
+.mcp-dash__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: 6px;
+}
+.mcp-dash__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--cate-border);
+  border-radius: var(--cate-radius-sm);
+  background: var(--cate-bg-elev);
+}
+.mcp-dash__statval {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--cate-fg);
+  font-variant-numeric: tabular-nums;
+}
+.mcp-dash__statval--warn {
+  color: var(--cate-warning);
+}
+.mcp-dash__statlabel {
+  font-size: 10.5px;
+  color: var(--cate-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Servers health grid. */
+.mcp-dash__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 4px;
+}
+.mcp-dash__server {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--cate-border);
+  border-radius: var(--cate-radius-sm);
+  background: var(--cate-bg-elev);
+}
+.mcp-dash__servername {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-dash__servermeta {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--cate-muted);
+}
+.mcp-dash__servermeta--warn {
+  color: var(--cate-warning);
+}
+
+/* Activity feed rows: time · server__tool · caller chip · duration · ok/err. */
+.mcp-dash__note {
+  color: var(--cate-muted);
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.mcp-dash__feed {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mcp-dash__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 3px 8px;
+  border-radius: var(--cate-radius-sm);
+}
+.mcp-dash__row:hover {
+  background: var(--cate-hover);
+}
+.mcp-dash__time {
+  flex: 0 0 auto;
+  color: var(--cate-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.mcp-dash__tool {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--cate-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mcp-dash__chip {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: var(--cate-radius-xs);
+  background: var(--cate-hover);
+  color: var(--cate-fg-secondary);
+  font-size: 10px;
+}
+.mcp-dash__dur {
+  flex: 0 0 auto;
+  color: var(--cate-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.mcp-dash__result {
+  flex: 0 0 auto;
+  width: 26px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--cate-success);
+}
+.mcp-dash__result--err {
+  color: var(--cate-danger);
+}
+.mcp-dash__empty,
+.mcp-dash__hint {
+  color: var(--cate-muted);
+  font-size: 12px;
+  padding: 6px 2px;
 }
 
 /* --- misc ------------------------------------------------------------------------------- */

@@ -6,6 +6,8 @@
 // =============================================================================
 
 import type {
+  ActivityResponse,
+  AgentsResponse,
   PromptGetResponse,
   ResourceReadResponse,
   ServerConfigInput,
@@ -89,6 +91,22 @@ export function registrySearch(q: string, cursor: string | null): Promise<Regist
   if (q) params.set('q', q)
   if (cursor) params.set('cursor', cursor)
   return request<RegistrySearchResult>(`api/registry/search?${params.toString()}`) as Promise<RegistrySearchResult>
+}
+
+export function fetchAgents(): Promise<AgentsResponse> {
+  return request<AgentsResponse>('api/agents') as Promise<AgentsResponse>
+}
+
+export function fetchActivity(limit?: number): Promise<ActivityResponse> {
+  return request<ActivityResponse>(limit ? `api/activity?limit=${limit}` : 'api/activity') as Promise<ActivityResponse>
+}
+
+export function installAgent(id: string): Promise<SimpleResult> {
+  return postJson('api/agents/install', { id }) as Promise<SimpleResult>
+}
+
+export function uninstallAgent(id: string): Promise<SimpleResult> {
+  return postJson('api/agents/uninstall', { id }) as Promise<SimpleResult>
 }
 
 export interface OAuthStartResult {

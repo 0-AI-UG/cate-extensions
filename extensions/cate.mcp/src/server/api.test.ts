@@ -14,6 +14,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { Manager } from './manager'
 import { Aggregator } from './aggregate'
+import { ActivityLog } from './activity'
+import { AgentInstaller } from './agent-install'
 import { createRequestHandler } from './http-app'
 import type { RegistryResult } from './registry-client'
 import type { StateSnapshot } from '../shared/types'
@@ -40,12 +42,13 @@ async function boot(autostart = false): Promise<TestApp> {
     autostart,
     connection: { pingIntervalMs: 60_000, backoffBaseMs: 50, backoffCapMs: 100, maxRestartAttempts: 2 },
   })
-  const aggregator = new Aggregator(manager)
+  const aggregator = new Aggregator(manager, new ActivityLog())
   manager.onInventoryChange(() => aggregator.notifyListsChanged())
   const handler = createRequestHandler({
     manager,
     aggregator,
     registry: { search: async () => registryStub() },
+    installer: new AgentInstaller(tmp),
     token: TOKEN,
     publicDir: path.join(tmp, 'no-public'),
   })
@@ -270,6 +273,37 @@ describe('registry endpoint', () => {
   })
 })
 
+describe('agent install endpoints', () => {
+  it('lists agents, installs the endpoint, then uninstalls it', async () => {
+    const listed = (await (await api('/api/agents')).json()) as {
+      ok: boolean
+      agents: { id: string; installed: boolean }[]
+    }
+    expect(listed.ok).toBe(true)
+    expect(listed.agents.find((a) => a.id === 'claude-code')?.installed).toBe(false)
+
+    const ins = await api('/api/agents/install', { method: 'POST', body: JSON.stringify({ id: 'claude-code' }) })
+    expect(ins.status).toBe(200)
+    const doc = JSON.parse(fs.readFileSync(path.join(app.tmp, '.mcp.json'), 'utf8'))
+    expect(doc.mcpServers.cate.url).toBe(app.manager.getState().endpoint.url)
+    expect(doc.mcpServers.cate.headers.Authorization).toBe(`Bearer ${TOKEN}`)
+
+    const after = (await (await api('/api/agents')).json()) as { agents: { id: string; installed: boolean }[] }
+    expect(after.agents.find((a) => a.id === 'claude-code')?.installed).toBe(true)
+
+    const del = await api('/api/agents/uninstall', { method: 'POST', body: JSON.stringify({ id: 'claude-code' }) })
+    expect(del.status).toBe(200)
+    expect(JSON.parse(fs.readFileSync(path.join(app.tmp, '.mcp.json'), 'utf8')).mcpServers.cate).toBeUndefined()
+  })
+
+  it('rejects an unsupported agent and a missing id', async () => {
+    const anti = await api('/api/agents/install', { method: 'POST', body: JSON.stringify({ id: 'pi' }) })
+    expect(anti.status).toBe(400)
+    const bad = await api('/api/agents/install', { method: 'POST', body: JSON.stringify({}) })
+    expect(bad.status).toBe(400)
+  })
+})
+
 describe('live fixture end to end', () => {
   it('add + start a real stdio server, call a tool, then reach it through /mcp', async () => {
     const add = await api('/api/servers', {
@@ -321,6 +355,22 @@ describe('live fixture end to end', () => {
     } finally {
       await client.close()
     }
+
+    // The recorder logged both calls through the aggregator: right server/tool,
+    // the isError flag, and the connecting client's advertised name.
+    const activity = (await (await api('/api/activity')).json()) as {
+      ok: boolean
+      entries: { server: string; tool: string; isError: boolean; client?: string }[]
+      summary: { total: number; errors: number }
+    }
+    expect(activity.ok).toBe(true)
+    const echo = activity.entries.find((e) => e.server === 'fix' && e.tool === 'echo' && !e.isError)
+    expect(echo).toBeTruthy()
+    expect(echo?.client).toBe('external-agent')
+    const failedEntry = activity.entries.find((e) => e.server === 'fix' && e.tool === 'fail')
+    expect(failedEntry?.isError).toBe(true)
+    expect(activity.summary.total).toBeGreaterThanOrEqual(2)
+    expect(activity.summary.errors).toBeGreaterThanOrEqual(1)
 
     // Stop: the endpoint no longer lists it.
     expect((await api('/api/servers/fix/stop', { method: 'POST', body: '{}' })).status).toBe(200)
