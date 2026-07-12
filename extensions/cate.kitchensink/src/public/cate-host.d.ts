@@ -15,7 +15,7 @@ interface CateHostTheme {
   terminal: Record<string, string>
 }
 
-/** Result of one agent turn (`cate.agent.send` / `cate.agent.run`): the flattened
+/** Result of one agent turn (`cate.agent.send`): the flattened
  *  `text` for convenience plus the raw final assistant `message` from pi (its role
  *  and content blocks — text, tool calls, etc.), or null if the turn produced none. */
 interface AgentTurnResult {
@@ -92,7 +92,6 @@ interface CateHost {
     /** Tear down the live session (pi's jsonl stays; reopen via `resume`). */
     dispose(sessionId: string): Promise<unknown>
     /** One-shot sugar over open -> send -> dispose. */
-    run(prompt: string): Promise<AgentTurnResult | { error: string }>
     /** Abort the in-flight turn of this extension's session. */
     cancel(): Promise<unknown>
   }
