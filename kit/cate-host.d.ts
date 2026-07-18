@@ -41,13 +41,16 @@ export interface CateHostStorage {
 export interface CatePanel {
   readonly id: string
   setTitle(title: string): Promise<void>
-  /** List this window's panels (requires the `panel` scope). Panels detached
-   *  into other windows are not included. THE single enumeration surface: the
+  /** List panels across this workspace's windows (requires the `panel` scope).
+   *  THE single enumeration surface: the
    *  focused entry answers "what is the user looking at", and browser panels
    *  carry their `url` (there is no separate browser list). */
   list(): Promise<CatePanelInfo[]>
   /** Reveal/focus a panel by id (requires the `panel` scope). */
   focus(panelId: string): Promise<unknown>
+  /** Close a panel through its normal dirty/running confirmation path. Does not
+   *  reveal or focus the panel first (requires the `panel` scope). */
+  close(panelId: string): Promise<unknown>
 }
 
 /** One open panel, as reported by `cate.panel.list()`. `filePath` is the bare
@@ -132,8 +135,8 @@ export interface CateHost {
     /** To enumerate open browser panels, use `cate.panel.list()`. */
     open(opts: { url: string; panelId?: string }): Promise<{ panelId: string; url: string }>
     reload(opts?: { panelId?: string }): Promise<{ ok: true }>
-    /** Capture a screenshot; returns a host filesystem path (a webview guest
-     *  can't read it directly; a server-backed extension can). */
+    /** Capture a screenshot; returns a host filesystem path in the OS temp dir
+     *  (a webview guest can't read it directly; a server-backed extension can). */
     screenshot(opts?: { panelId?: string }): Promise<{ path: string }>
     snapshot(opts?: { panelId?: string }): Promise<CateBrowserSnapshot>
     click(opts: { ref: string; panelId?: string }): Promise<{ ok: true }>
