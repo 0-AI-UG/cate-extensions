@@ -42,6 +42,46 @@ export interface CateHostStorage {
 export interface CatePanel {
   readonly id: string
   setTitle(title: string): Promise<void>
+  /** List panels across this workspace's windows (requires the `panel` scope).
+   *  THE single enumeration surface: the
+   *  focused entry answers "what is the user looking at", and browser panels
+   *  carry their `url` (there is no separate browser list). */
+  list(): Promise<CatePanelInfo[]>
+  /** Reveal/focus a panel by id (requires the `panel` scope). */
+  focus(panelId: string): Promise<unknown>
+  /** Close a panel through its normal dirty/running confirmation path. Does not
+   *  reveal or focus the panel first (requires the `panel` scope). */
+  close(panelId: string): Promise<unknown>
+}
+
+/** One open panel, as reported by `cate.panel.list()`. `filePath` is the bare
+ *  runtime path (same form as `workspace.get().rootPath`), present for panels
+ *  backed by a file (editors, documents). `url` is present for browser panels
+ *  (empty while on the start page). */
+export interface CatePanelInfo {
+  panelId: string
+  type: string
+  title: string
+  focused: boolean
+  filePath?: string
+  url?: string
+}
+
+/** One interactable element in an accessibility `snapshot()`. `ref` is an opaque
+ *  handle to pass back to `click`/`type`/`press`; it is only valid for the
+ *  snapshot it came from (re-snapshot after a navigation or mutation). */
+export interface CateBrowserRef {
+  ref: string
+  role: string
+  name: string
+  value?: string
+}
+
+/** Accessibility snapshot of a browser panel, from `cate.browser.snapshot()`. */
+export interface CateBrowserSnapshot {
+  url: string
+  title: string
+  refs: CateBrowserRef[]
 }
 
 /** A file the user dragged onto this panel, delivered to `cate.files.onDrop`. */
@@ -86,8 +126,29 @@ export interface CateHost {
     open(opts?: { resume?: string }): Promise<{ sessionId: string } | { error: string }>
     send(sessionId: string, prompt: string): Promise<AgentTurnResult | { error: string }>
     dispose(sessionId: string): Promise<unknown>
-    run(prompt: string): Promise<AgentTurnResult | { error: string }>
     cancel(): Promise<unknown>
+  }
+  /** Drive Cate's browser panels (requires the `browser` scope + first-use user
+   *  consent). These panels hold the user's real, logged-in session — treat it
+   *  accordingly. `panelId` picks a target; omitted, the focused (or only)
+   *  browser panel is used. */
+  browser: {
+    /** To enumerate open browser panels, use `cate.panel.list()`. */
+    open(opts: { url: string; panelId?: string }): Promise<{ panelId: string; url: string }>
+    reload(opts?: { panelId?: string }): Promise<{ ok: true }>
+    /** Capture a screenshot; returns a host filesystem path in the OS temp dir
+     *  (a webview guest can't read it directly; a server-backed extension can). */
+    screenshot(opts?: { panelId?: string }): Promise<{ path: string }>
+    snapshot(opts?: { panelId?: string }): Promise<CateBrowserSnapshot>
+    click(opts: { ref: string; panelId?: string }): Promise<{ ok: true }>
+    type(opts: { ref: string; text: string; panelId?: string }): Promise<{ ok: true }>
+    /** Resolve once the panel stops loading (`timeoutMs` defaults to 5000,
+     *  capped at 8000). Rejects in-band with `still-loading`. */
+    wait(opts?: { panelId?: string; timeoutMs?: number }): Promise<{ url: string; title: string; loading: false }>
+    /** Press a named key (Enter, Tab, Escape, Backspace, Delete, Space, arrows,
+     *  PageUp/PageDown, Home, End) as TRUSTED input, so Enter submits forms.
+     *  With `ref` the element is focused first. */
+    press(opts: { key: string; ref?: string; panelId?: string }): Promise<{ ok: true }>
   }
   storage: CateHostStorage
 }
