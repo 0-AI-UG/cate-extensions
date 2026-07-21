@@ -18,6 +18,22 @@ https://github.com/0-AI-UG/cate-extensions/releases/download/catalog/index.json
 | `cate.sqlite` | server-backed | Read-only SQLite browser for workspace databases (bundled WASM engine, nothing installed or spawned). |
 | `cate.usage` | server-backed | Agent usage and cost dashboard powered by ccusage. |
 
+Nine more are url-mode: the manifest is a single `url` and Cate loads that web
+app in the panel, signed in with the user's own session. No build, no server, no
+`cate.*` bridge.
+
+| Id | Loads |
+| --- | --- |
+| `cate.confluence` | https://home.atlassian.com/ |
+| `cate.discord` | https://discord.com/app |
+| `cate.dynamics365` | https://www.office.com/apps |
+| `cate.hubspot` | https://app.hubspot.com/ |
+| `cate.jira` | https://home.atlassian.com/ |
+| `cate.pipedrive` | https://app.pipedrive.com/ |
+| `cate.salesforce` | https://login.salesforce.com/ |
+| `cate.slack` | https://app.slack.com/client |
+| `cate.zohocrm` | https://crm.zoho.com/crm/ShowHomePage.do |
+
 Two more folders are reference implementations, not products. They carry
 `"dev": true` in their manifest, so `gen-catalog.mjs` leaves them out of the
 published catalog and you only get them by sideloading:
