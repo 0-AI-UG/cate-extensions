@@ -65,7 +65,11 @@ export interface Summary {
   today: PeriodSummary
   thisWeek: PeriodSummary
   thisMonth: PeriodSummary
-  allTime: PeriodSummary
+  /** Everything on disk. NOT all-time: agents purge their own transcripts
+   *  (Claude Code deletes ~/.claude/projects entries older than
+   *  `cleanupPeriodDays`, 30 by default), so this covers only what survived.
+   *  Pair it with UsageReport.coverageStart when labelling. */
+  retained: PeriodSummary
 }
 
 export interface DailyPoint {
@@ -104,6 +108,9 @@ export interface UsageReport {
   reason?: 'no-claude-data' | 'no-usage-entries'
   generatedAt: string
   today: string
+  /** First day with usage on disk, or null when there is none. The summary's
+   *  `retained` bucket spans coverageStart..today and nothing earlier. */
+  coverageStart: string | null
   claudePaths: string[]
   pricingSource: 'online' | 'offline' | 'none'
   summary: Summary
@@ -172,8 +179,19 @@ export function summarize(daily: DailyRow[], today: string): Summary {
     today: sumPeriod(upToToday.filter((r) => r.date === today)),
     thisWeek: sumPeriod(upToToday.filter((r) => r.date >= week)),
     thisMonth: sumPeriod(upToToday.filter((r) => r.date >= month)),
-    allTime: sumPeriod(upToToday),
+    retained: sumPeriod(upToToday),
   }
+}
+
+/** Earliest day with usage on disk (null when there is none) — the real start
+ *  of the retained window, which the panel labels instead of "all time". */
+export function coverageStartOf(daily: DailyRow[], today: string): string | null {
+  let first: string | null = null
+  for (const row of daily) {
+    if (row.date > today) continue
+    if (first === null || row.date < first) first = row.date
+  }
+  return first
 }
 
 /** The last `days` calendar days ending at `today`, zero-filled so the chart
@@ -306,6 +324,7 @@ export function buildReport(raw: RawUsage, today: string, opts: ReportOptions = 
     ...(available ? {} : { reason: hasPaths ? ('no-usage-entries' as const) : ('no-claude-data' as const) }),
     generatedAt: new Date().toISOString(),
     today,
+    coverageStart: coverageStartOf(raw.daily, today),
     claudePaths: raw.claudePaths,
     pricingSource: raw.pricingSource,
     summary: summarize(raw.daily, today),

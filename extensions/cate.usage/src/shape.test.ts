@@ -143,24 +143,24 @@ describe('summarize', () => {
     expect(s.today.cost).toBe(3)
     expect(s.thisWeek.cost).toBe(50) // 40 + 7 + 3
     expect(s.thisMonth.cost).toBe(10) // 7 + 3
-    expect(s.allTime.cost).toBe(150)
-    expect(s.allTime.days).toBe(4)
+    expect(s.retained.cost).toBe(150)
+    expect(s.retained.days).toBe(4)
   })
 
   it('sums token totals across all four buckets', () => {
     const s = summarize(daily, today)
     expect(s.today.totalTokens).toBe(10_000)
-    expect(s.allTime.totalTokens).toBe(40_000)
-    expect(s.allTime.inputTokens).toBe(4000)
-    expect(s.allTime.outputTokens).toBe(8000)
+    expect(s.retained.totalTokens).toBe(40_000)
+    expect(s.retained.inputTokens).toBe(4000)
+    expect(s.retained.outputTokens).toBe(8000)
   })
 
   it('ignores rows dated after today and handles empty input', () => {
     const s = summarize([day('2026-07-05', { totalCost: 99 })], today)
-    expect(s.allTime.cost).toBe(0)
+    expect(s.retained.cost).toBe(0)
     const empty = summarize([], today)
     expect(empty.today.cost).toBe(0)
-    expect(empty.allTime.days).toBe(0)
+    expect(empty.retained.days).toBe(0)
   })
 })
 
@@ -337,6 +337,30 @@ describe('buildReport', () => {
     expect(report.pricingSource).toBe('online')
   })
 
+  it('reports the retained window rather than implying all-time coverage', () => {
+    // MULTI_MODEL_DAY is 2026-06-03; the retained bucket starts there, not at
+    // whenever the user actually started using the agent.
+    const report = buildReport(raw, '2026-07-04', { days: 30 })
+    expect(report.coverageStart).toBe('2026-06-03')
+    expect(report.summary.retained.days).toBe(2)
+  })
+
+  it('has no coverage start when nothing is on disk', () => {
+    const report = buildReport(
+      { claudePaths: ['/home/user/.claude'], pricingSource: 'online', daily: [], sessions: [], monthly: [] },
+      '2026-07-04',
+    )
+    expect(report.coverageStart).toBeNull()
+  })
+
+  it('ignores future-dated rows when picking the coverage start', () => {
+    const report = buildReport(
+      { ...raw, daily: [day('2099-01-01', { totalCost: 1 }), ...raw.daily] },
+      '2026-07-04',
+    )
+    expect(report.coverageStart).toBe('2026-06-03')
+  })
+
   it('flags the no-claude-data empty state', () => {
     const report = buildReport(
       { claudePaths: [], pricingSource: 'none', daily: [], sessions: [], monthly: [] },
@@ -345,7 +369,7 @@ describe('buildReport', () => {
     expect(report.available).toBe(false)
     expect(report.reason).toBe('no-claude-data')
     expect(report.daily).toHaveLength(30) // zero-filled, chart-safe
-    expect(report.summary.allTime.cost).toBe(0)
+    expect(report.summary.retained.cost).toBe(0)
   })
 
   it('flags the no-usage-entries empty state when a data dir exists but is empty', () => {

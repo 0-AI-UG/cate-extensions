@@ -436,8 +436,9 @@ function renderChart(container: HTMLElement, points: DailyPoint[], which: Metric
 
 // --- sections ---------------------------------------------------------------------
 
-function stat(label: string, period: PeriodSummary): HTMLElement {
+function stat(label: string, period: PeriodSummary, hint?: string): HTMLElement {
   const wrap = el('div', 'us-stat')
+  if (hint) wrap.title = hint
   wrap.appendChild(el('span', 'us-stat__label', label))
   const row = el('div', 'us-stat__row')
   row.appendChild(el('span', 'us-stat__value', fmtUsd(period.cost)))
@@ -578,7 +579,18 @@ function render(): void {
   statsEl.appendChild(stat('Today', report.summary.today))
   statsEl.appendChild(stat('Week', report.summary.thisWeek))
   statsEl.appendChild(stat('Month', report.summary.thisMonth))
-  statsEl.appendChild(stat('All time', report.summary.allTime))
+  // NOT "all time": agents purge their own transcripts (Claude Code drops
+  // ~/.claude/projects entries past `cleanupPeriodDays`, 30 by default), so
+  // this tile covers only what is still on disk. Label it with that window.
+  statsEl.appendChild(
+    stat(
+      report.coverageStart ? `Since ${fmtDayLabel(report.coverageStart)}` : 'On disk',
+      report.summary.retained,
+      report.coverageStart
+        ? `Everything still on disk: ${report.coverageStart} to ${report.today}. Not all-time — Claude Code deletes transcripts older than cleanupPeriodDays (30 by default), and usage from before ${report.coverageStart} is already gone.`
+        : undefined,
+    ),
+  )
 
   // Hero timeline card: metric + window toggles, flexing chart, model footer.
   const metricSeg = segmented<Metric>(['cost', 'tokens'], metric, (m) => (m === 'cost' ? 'Cost' : 'Tokens'), (m) => {
