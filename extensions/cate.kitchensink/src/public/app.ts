@@ -326,6 +326,44 @@ function initAgent(): void {
   })
 }
 
+// --- browser ----------------------------------------------------------------
+
+// Drive Cate's browser panels through window.cate.browser (needs the `browser`
+// scope). These panels hold the user's real logged-in session, so this is a
+// deliberately small demo: open a URL, and snapshot the focused panel.
+function initBrowser(): void {
+  if (!window.cate) return
+  const out = byId('browser-out')
+
+  byId('browser-open').addEventListener('click', async () => {
+    const url = byId<HTMLInputElement>('browser-url').value.trim()
+    if (!url) return
+    out.textContent = 'opening…'
+    try {
+      const res = await cate.browser.open({ url })
+      out.textContent = 'opened ' + JSON.stringify(res, null, 2)
+      log('browser.open ->', res)
+    } catch (err) {
+      out.textContent = 'failed: ' + String(err)
+      log('browser.open failed:', String(err))
+    }
+  })
+
+  byId('browser-snapshot').addEventListener('click', async () => {
+    out.textContent = 'snapshotting…'
+    try {
+      const snap = await cate.browser.snapshot()
+      out.textContent =
+        `${snap.title} — ${snap.url}\n${snap.refs.length} refs\n` +
+        JSON.stringify(snap.refs.slice(0, 20), null, 2)
+      log('browser.snapshot ->', snap)
+    } catch (err) {
+      out.textContent = 'failed: ' + String(err)
+      log('browser.snapshot failed:', String(err))
+    }
+  })
+}
+
 initBridge()
 initNotes()
 initStorageApi()
@@ -334,3 +372,4 @@ initHttp()
 initWs()
 initRoundtrip()
 initAgent()
+initBrowser()

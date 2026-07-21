@@ -50,6 +50,22 @@ interface CatePanel {
   setTitle(title: string): Promise<void>
 }
 
+/** One interactable element in an accessibility `snapshot()`. `ref` is opaque and
+ *  only valid for the snapshot it came from. */
+interface CateBrowserRef {
+  ref: string
+  role: string
+  name: string
+  value?: string
+}
+
+/** Accessibility snapshot of a browser panel, from `cate.browser.snapshot()`. */
+interface CateBrowserSnapshot {
+  url: string
+  title: string
+  refs: CateBrowserRef[]
+}
+
 interface CateHost {
   /** API version int, for feature detection. */
   version(): Promise<number>
@@ -94,6 +110,27 @@ interface CateHost {
     /** One-shot sugar over open -> send -> dispose. */
     /** Abort the in-flight turn of this extension's session. */
     cancel(): Promise<unknown>
+  }
+  /** Drive Cate's browser panels (requires the `browser` scope). These panels
+   *  hold the user's real, logged-in browser session, so treat the access as
+   *  sensitive. `panelId` targets a panel; omit it for the focused one. */
+  browser: {
+    /** To enumerate open browser panels, use `cate.panel.list()`. */
+    open(opts: { url: string; panelId?: string }): Promise<{ panelId: string; url: string }>
+    reload(opts?: { panelId?: string }): Promise<{ ok: true }>
+    /** Capture a screenshot; returns a host filesystem path in the OS temp dir
+     *  (a webview guest can't read it directly; a server-backed extension can). */
+    screenshot(opts?: { panelId?: string }): Promise<{ path: string }>
+    snapshot(opts?: { panelId?: string }): Promise<CateBrowserSnapshot>
+    click(opts: { ref: string; panelId?: string }): Promise<{ ok: true }>
+    type(opts: { ref: string; text: string; panelId?: string }): Promise<{ ok: true }>
+    /** Resolve once the panel stops loading (`timeoutMs` defaults to 5000,
+     *  capped at 8000). Rejects in-band with `still-loading`. */
+    wait(opts?: { panelId?: string; timeoutMs?: number }): Promise<{ url: string; title: string; loading: false }>
+    /** Press a named key (Enter, Tab, Escape, Backspace, Delete, Space, arrows,
+     *  PageUp/PageDown, Home, End) as TRUSTED input, so Enter submits forms.
+     *  With `ref` the element is focused first. */
+    press(opts: { key: string; ref?: string; panelId?: string }): Promise<{ ok: true }>
   }
   storage: CateHostStorage
 }

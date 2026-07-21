@@ -9,5 +9,5 @@
     "readyPath": "/health",
     "portEnv": "PORT"
   },
-  "cateApi": ["storage", "editor", "canvas", "theme", "ui", "workspace.read", "agent"]
+  "cateApi": ["storage", "editor", "canvas", "theme", "ui", "workspace.read", "agent", "browser"]
 }
