@@ -2,6 +2,7 @@
   "id": "cate.frontendkit",
   "name": "Frontend Kit",
   "version": "1.0.0",
+  "category": "development",
   "dev": true,
   "frontend": "index.html",
   "panels": [

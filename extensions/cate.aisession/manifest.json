@@ -2,6 +2,7 @@
   "id": "cate.aisession",
   "name": "AI Session Viewer",
   "version": "1.1.0",
+  "category": "ai",
   "frontend": "dist/index.html",
   "description": "Drop a Claude Code, Codex, or pi session file to read it back as a chat.",
   "panels": [

@@ -2,6 +2,7 @@
   "id": "cate.discord",
   "name": "Discord",
   "version": "1.0.0",
+  "category": "communication",
   "description": "Discord as a canvas panel. Points a panel at the Discord web app in the extension's own persistent session, so you stay signed in across restarts and can keep a chat next to your code.",
   "url": "https://discord.com/app",
   "panels": [

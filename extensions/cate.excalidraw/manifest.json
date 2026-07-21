@@ -2,6 +2,7 @@
   "id": "cate.excalidraw",
   "name": "Excalidraw",
   "version": "1.0.1",
+  "category": "design",
   "description": "The Excalidraw whiteboard, running as a panel on the Cate canvas. Drawings autosave per panel.",
   "frontend": "dist/index.html",
   "panels": [

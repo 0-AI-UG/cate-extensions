@@ -2,6 +2,7 @@
   "id": "cate.slack",
   "name": "Slack",
   "version": "1.0.0",
+  "category": "communication",
   "description": "Slack as a canvas panel. Points a panel at the Slack web client in the extension's own persistent session, so you stay signed in across restarts and can keep a channel next to your code.",
   "url": "https://app.slack.com/client",
   "panels": [

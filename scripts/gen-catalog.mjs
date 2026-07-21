@@ -4,7 +4,8 @@
 //
 // Dependency-free. Scans extensions/<id>/manifest.json, and for each extension
 // reads the already-built artifact at dist/artifacts/<id>-<version>.tgz,
-// computes its sha256, and emits a catalog entry.
+// computes its sha256, and emits a catalog entry. A manifest whose `category`
+// isn't one Cate knows is a hard error (see CATEGORIES).
 //
 //   artifactUrl:
 //     - ${CATALOG_BASE_URL}/<id>-<version>.tgz   when CATALOG_BASE_URL is set
@@ -31,6 +32,20 @@ const ARTIFACT_DIR = join(DIST_DIR, "artifacts");
 const CATALOG_DIR = join(DIST_DIR, "catalog");
 
 const baseUrl = (process.env.CATALOG_BASE_URL || "").replace(/\/+$/, "");
+
+// Functional categories Cate's catalog UI filters by — must stay in sync with
+// EXTENSION_CATEGORIES in cate/src/shared/extensions.ts. Cate silently files an
+// unknown category under "Other", so catch typos here instead.
+const CATEGORIES = [
+  "ai",
+  "development",
+  "data",
+  "design",
+  "productivity",
+  "communication",
+  "sales",
+  "other",
+];
 
 // First line of a README, or undefined.
 function readmeFirstLine(dir) {
@@ -69,6 +84,14 @@ for (const entry of entries) {
   if (manifest.dev === true) {
     console.log(`catalog: skip ${id}@${version} (dev: true)`);
     continue;
+  }
+
+  if (manifest.category === undefined) {
+    console.warn(`${id}: no category — it will show up under "Other" in the catalog`);
+  } else if (!CATEGORIES.includes(manifest.category)) {
+    throw new Error(
+      `${id}: unknown category "${manifest.category}" (expected one of ${CATEGORIES.join(", ")})`,
+    );
   }
 
   const artifactName = `${id}-${version}.tgz`;

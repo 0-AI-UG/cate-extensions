@@ -2,6 +2,7 @@
   "id": "cate.zohocrm",
   "name": "Zoho CRM",
   "version": "1.0.0",
+  "category": "sales",
   "description": "Zoho CRM as a canvas panel. Points a panel at the Zoho CRM home in the extension's own persistent session, so you stay signed in across restarts and can keep your accounts next to your code.",
   "url": "https://crm.zoho.com/crm/ShowHomePage.do",
   "panels": [
