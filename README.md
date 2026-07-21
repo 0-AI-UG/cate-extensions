@@ -18,13 +18,39 @@ https://github.com/0-AI-UG/cate-extensions/releases/download/catalog/index.json
 | `cate.sqlite` | server-backed | Read-only SQLite browser for workspace databases (bundled WASM engine, nothing installed or spawned). |
 | `cate.usage` | server-backed | Agent usage and cost dashboard powered by ccusage. |
 
+Nine more are url-mode: the manifest is a single `url` and Cate loads that web
+app in the panel, signed in with the user's own session. No build, no server, no
+`cate.*` bridge.
+
+| Id | Loads |
+| --- | --- |
+| `cate.confluence` | https://home.atlassian.com/ |
+| `cate.discord` | https://discord.com/app |
+| `cate.dynamics365` | https://www.office.com/apps |
+| `cate.hubspot` | https://app.hubspot.com/ |
+| `cate.jira` | https://home.atlassian.com/ |
+| `cate.pipedrive` | https://app.pipedrive.com/ |
+| `cate.salesforce` | https://login.salesforce.com/ |
+| `cate.slack` | https://app.slack.com/client |
+| `cate.zohocrm` | https://crm.zoho.com/crm/ShowHomePage.do |
+
+Two more folders are reference implementations, not products. They carry
+`"dev": true` in their manifest, so `gen-catalog.mjs` leaves them out of the
+published catalog and you only get them by sideloading:
+
+| Id | Shape | What it is |
+| --- | --- | --- |
+| `cate.frontendkit` | frontend-only | Smallest useful extension: static assets, no server, no build step. |
+| `cate.kitchensink` | server-backed | Exercises the host API: most `cate.*` scopes, a Node server, WebSockets. |
+
 ## Repo layout
 
 ```
 cate-extensions/
   extensions/<id>/            # one folder per extension
   kit/                        # shared UI kit: tokens, theme bridge, host typings,
-                              #   ServiceConnection, server HTTP scaffolding
+                              #   ServiceConnection, proxy api-client, server
+                              #   HTTP scaffolding (see kit/README.md)
   scripts/sync-kit.mjs        # copies kit/ into consumers' src/_kit/ (+ src/_kitserver/)
   scripts/gen-catalog.mjs     # builds dist/catalog/index.json
   build.sh                    # sync-kit, npm builds, tars extensions, then gen-catalog
@@ -56,7 +82,10 @@ In this repo:
   artifact ships only `manifest.json` + `dist/`; otherwise the folder ships
   as-is.
 - Kit consumers: add the id in `scripts/sync-kit.mjs`, run it, commit the
-  synced `src/_kit/` (never edit it directly).
+  synced `src/_kit/` (never edit it directly). `--check` reports stale copies
+  without writing.
+- A reference or work-in-progress extension that should not reach users gets
+  `"dev": true`; the catalog skips it and it stays sideload-only.
 - `./build.sh` must pass; bump `version` for every published change.
 
 ## Publishing
