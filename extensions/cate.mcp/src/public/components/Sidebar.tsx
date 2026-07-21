@@ -4,8 +4,8 @@
 
 import { useState } from 'react'
 import type { StateSnapshot } from '../../shared/types'
-import type { View } from '../main'
-import { BracesIcon, BroadcastIcon, CompassIcon, PlusIcon, SidebarIcon, StatusDot, openConfigFile } from './util'
+import type { View } from '../view'
+import { BracesIcon, BroadcastIcon, CompassIcon, DashboardIcon, PlusIcon, SidebarIcon, StatusDot, openConfigFile } from './util'
 
 const FILTER_THRESHOLD = 8
 
@@ -66,6 +66,16 @@ export function Sidebar({
         ))}
       </div>
       <div className="mcp-side__foot">
+        <button
+          type="button"
+          className={`mcp-item${view.kind === 'dashboard' ? ' mcp-item--selected' : ''}`}
+          onClick={() => onSelect({ kind: 'dashboard' })}
+        >
+          <span className="mcp-item__icon">
+            <DashboardIcon />
+          </span>
+          <span className="mcp-item__name">Dashboard</span>
+        </button>
         <button
           type="button"
           className={`mcp-item${view.kind === 'discover' ? ' mcp-item--selected' : ''}`}

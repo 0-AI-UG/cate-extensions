@@ -34,6 +34,7 @@ import {
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { namespaceName, splitNamespacedName } from '../shared/naming'
 import type { PromptInfo, ResourceInfo, ToolInfo } from '../shared/types'
+import type { ActivityLog } from './activity'
 
 /** What the aggregator needs from a managed server (subset of ManagedConnection). */
 export interface UpstreamConnection {
@@ -60,7 +61,7 @@ function upstreamByName(source: AggregateSource, namespaced: string): { conn: Up
 }
 
 /** Build one aggregating MCP Server instance (one per client session). */
-export function createAggregateServer(source: AggregateSource): Server {
+export function createAggregateServer(source: AggregateSource, activityLog: ActivityLog): Server {
   const server = new Server(
     { name: 'cate-mcp-aggregate', version: '1.0.0' },
     {
@@ -92,16 +93,21 @@ export function createAggregateServer(source: AggregateSource): Server {
     const { conn, item } = upstreamByName(source, request.params.name)
     const known = conn.tools.some((t) => t.name === item)
     if (!known) throw new McpError(ErrorCode.InvalidParams, `server "${conn.name}" has no tool "${item}"`)
+    const started = Date.now()
+    // Best-effort caller attribution from the MCP clientInfo captured at init.
+    const client = server.getClientVersion()?.name
     try {
-      const result = await conn.activeClient!.callTool(
+      const result = (await conn.activeClient!.callTool(
         { name: item, arguments: (request.params.arguments as Record<string, unknown>) ?? {} },
         undefined,
         { timeout: 120_000 },
-      )
-      return result as CallToolResult
+      )) as CallToolResult
+      activityLog.record({ at: started, server: conn.name, tool: item, durationMs: Date.now() - started, isError: result.isError === true, client })
+      return result
     } catch (err) {
       // Upstream failure -> tool error, not a protocol error: the aggregate
       // session must survive one broken upstream.
+      activityLog.record({ at: started, server: conn.name, tool: item, durationMs: Date.now() - started, isError: true, client })
       return {
         content: [
           {
@@ -190,7 +196,10 @@ interface Session {
 export class Aggregator {
   private readonly sessions = new Map<string, Session>()
 
-  constructor(private readonly source: AggregateSource) {}
+  constructor(
+    private readonly source: AggregateSource,
+    readonly activityLog: ActivityLog,
+  ) {}
 
   /** Fan a list_changed to every connected session (upstreams moved). */
   notifyListsChanged(): void {
@@ -209,7 +218,7 @@ export class Aggregator {
       return
     }
     if (req.method === 'POST' && isInitializeRequest(parsedBody)) {
-      const server = createAggregateServer(this.source)
+      const server = createAggregateServer(this.source, this.activityLog)
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (id) => {

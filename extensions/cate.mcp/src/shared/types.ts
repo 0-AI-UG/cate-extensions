@@ -112,6 +112,29 @@ export interface EndpointInfo {
   authHeader: string
 }
 
+/** One coding agent the endpoint can be installed into (Endpoint screen). */
+export interface AgentTargetStatus {
+  id: string
+  label: string
+  /** Workspace-relative config file path, for display. */
+  path: string
+  /** False when this agent can't take a workspace-local HTTP MCP config. */
+  supported: boolean
+  /** Why it's unsupported (shown as a tooltip), when supported is false. */
+  reason?: string
+  /** Our endpoint entry is present in the agent's config. */
+  installed: boolean
+  /** Installed, but at a different URL than the current endpoint (needs update). */
+  stale: boolean
+}
+
+/** Wire shape of GET /api/agents. */
+export interface AgentsResponse {
+  ok: boolean
+  error?: string
+  agents?: AgentTargetStatus[]
+}
+
 export interface StateSnapshot {
   /** Monotonic change counter; the panel polls with it to skip no-op updates. */
   serial: number
@@ -131,6 +154,28 @@ export interface StateResponse {
   serial: number
   unchanged?: boolean
   state?: StateSnapshot
+}
+
+/** One recorded tool call through the aggregated /mcp endpoint (Activity feed). */
+export interface ActivityEntry {
+  /** Epoch ms at call start. */
+  at: number
+  /** Upstream managed server that served the call. */
+  server: string
+  /** Un-namespaced tool name on that server. */
+  tool: string
+  durationMs: number
+  isError: boolean
+  /** Connecting MCP client's advertised name, when known. */
+  client?: string
+}
+
+/** Wire shape of GET /api/activity?limit=<n>. */
+export interface ActivityResponse {
+  ok: boolean
+  error?: string
+  entries?: ActivityEntry[]
+  summary?: { total: number; errors: number }
 }
 
 /** One playground invocation result content block, pre-digested for the UI. */

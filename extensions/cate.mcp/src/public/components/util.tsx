@@ -131,6 +131,16 @@ export const CopyIcon = () =>
 
 export const CheckIcon = () => icon(<path d="M3.5 8.5l3 3 6-6.5" />)
 
+export const DashboardIcon = () =>
+  icon(
+    <>
+      <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" />
+      <rect x="9" y="2.5" width="4.5" height="4.5" rx="1" />
+      <rect x="2.5" y="9" width="4.5" height="4.5" rx="1" />
+      <rect x="9" y="9" width="4.5" height="4.5" rx="1" />
+    </>,
+  )
+
 export const CompassIcon = () =>
   icon(
     <>

@@ -12,6 +12,7 @@ import {
   ToolListChangedNotificationSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { createAggregateServer, type AggregateSource, type UpstreamConnection } from './aggregate'
+import { ActivityLog } from './activity'
 
 interface TestUpstream extends UpstreamConnection {
   close(): Promise<void>
@@ -71,7 +72,7 @@ async function makeUpstream(name: string): Promise<TestUpstream> {
 }
 
 async function makeAggregateClient(source: AggregateSource): Promise<Client> {
-  const aggServer = createAggregateServer(source)
+  const aggServer = createAggregateServer(source, new ActivityLog())
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
   await aggServer.connect(serverTransport)
   const client = new Client({ name: 'agg-client', version: '0' })
@@ -161,7 +162,7 @@ describe('unified endpoint aggregation', () => {
 
   it('declares listChanged and can push the notification to a session', async () => {
     const a = await makeUpstream('alpha')
-    const aggServer = createAggregateServer({ activeConnections: () => [a] })
+    const aggServer = createAggregateServer({ activeConnections: () => [a] }, new ActivityLog())
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
     await aggServer.connect(serverTransport)
     const client = new Client({ name: 'agg-client', version: '0' })

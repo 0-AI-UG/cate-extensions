@@ -13,7 +13,7 @@
 //   POST /api/echo           echoes the JSON body
 //   GET  /ws                 WebSocket echo
 //   POST /api/cate-roundtrip server calls back into Cate over CATE_API
-//   POST /api/agent-run      server runs one agent turn via cate.agent.run
+//   POST /api/agent-run      server runs one agent turn (agent.open -> send -> dispose)
 
 import http from 'http'
 import crypto from 'crypto'
@@ -259,8 +259,9 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // The server runs one agent turn via cate.agent.run (needs the `agent` scope
-  // and first-use consent). It resolves only when the agent finishes.
+  // The server runs one agent turn by composing open -> send -> dispose (needs
+  // the `agent` scope and first-use consent; there is no one-shot host method).
+  // It resolves only when the agent finishes.
   if (pathname === '/api/agent-run' && req.method === 'POST') {
     const raw = await readBody(req)
     let prompt = ''
@@ -274,14 +275,30 @@ const server = http.createServer(async (req, res) => {
       return
     }
     try {
-      const result = unwrap(await callCateApi('cate.agent.run', { prompt })) as
-        | { text?: string; error?: string }
+      const opened = unwrap(await callCateApi('cate.agent.open', {})) as
+        | { sessionId?: string; error?: string }
         | undefined
-      if (result && typeof result.error === 'string') {
-        sendJson(res, 200, { ok: false, error: result.error })
+      if (!opened || typeof opened.sessionId !== 'string') {
+        sendJson(res, 200, { ok: false, error: opened?.error ?? 'open-failed' })
         return
       }
-      sendJson(res, 200, { ok: true, text: result?.text ?? '' })
+      try {
+        const result = unwrap(
+          await callCateApi('cate.agent.send', { sessionId: opened.sessionId, prompt }),
+        ) as { text?: string; error?: string } | undefined
+        if (result && typeof result.error === 'string') {
+          sendJson(res, 200, { ok: false, error: result.error })
+          return
+        }
+        sendJson(res, 200, { ok: true, text: result?.text ?? '' })
+      } finally {
+        // Best effort: the session must not outlive the one-shot turn.
+        try {
+          await callCateApi('cate.agent.dispose', { sessionId: opened.sessionId })
+        } catch {
+          /* noop */
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       sendJson(res, 500, { ok: false, error: message })
