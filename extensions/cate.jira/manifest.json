@@ -1,0 +1,18 @@
+{
+  "id": "cate.jira",
+  "name": "Jira",
+  "version": "1.0.0",
+  "description": "Jira as a canvas panel. Points a panel at Atlassian Home in the extension's own persistent session, so you stay signed in across restarts and can keep your board next to your code.",
+  "url": "https://home.atlassian.com/",
+  "panels": [
+    {
+      "id": "app",
+      "label": "Jira",
+      "icon": "<svg viewBox=\"0 0 16 16\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"1.5\" y=\"2.5\" width=\"13\" height=\"11\" rx=\"1.5\" fill=\"none\" stroke=\"currentColor\" stroke-linejoin=\"round\"/><path d=\"M5.8 2.5v11M10.2 2.5v11\" fill=\"none\" stroke=\"currentColor\"/><path d=\"M3 5.2h1.4M7.3 5.2h1.4M11.6 5.2H13M3 7.6h1.4M7.3 7.6h1.4\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\"/></svg>",
+      "defaultSize": {
+        "width": 1100,
+        "height": 760
+      }
+    }
+  ]
+}
