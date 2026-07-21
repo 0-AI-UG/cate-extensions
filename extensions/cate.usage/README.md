@@ -1,4 +1,4 @@
-Agent usage and cost dashboard powered by ccusage. Reads the local Claude Code data (~/.claude) on the machine running the extension server and shows a stat strip for today, this week, this month, and all time, a daily cost/token timeline, and a per-model cost split. No data leaves the machine.
+Agent usage and cost dashboard powered by ccusage. Reads the local Claude Code data (~/.claude) on the machine running the extension server and shows a stat strip for today, this week, this month, and everything still on disk, a daily cost/token timeline, and a per-model cost split. No data leaves the machine.
 
 # cate.usage
 
@@ -6,7 +6,7 @@ A server-backed Cate extension that turns the machine's Claude Code usage logs
 into a single-screen dashboard panel (nothing scrolls):
 
 - A stat strip: cost and tokens for today, this ISO week, this calendar month,
-  and all time.
+  and the full retained window (labelled "Since <date>", never "all time").
 - The timeline: a daily bar chart (cost or tokens, 30/60/90 day window) with
   hover details, flexing to the panel height.
 - A per-model chip strip under the chart: cost and cost share per model, full
@@ -34,6 +34,15 @@ tries to fetch the live table so brand-new models price correctly; if that
 fails (offline machine), it falls back to ccusage's bundled table and the panel
 shows an "offline pricing" badge, since models newer than the pinned ccusage
 may then report zero cost.
+
+### Retention: there is no "all time"
+
+Claude Code deletes its own transcripts once they pass `cleanupPeriodDays`
+(30 by default, set in `~/.claude/settings.json`). ccusage can only price what
+survives, so the widest bucket this panel can honestly show is "everything
+still on disk" — it is labelled `Since <first day with usage>`, and the report
+carries that day as `coverageStart`. On a default install that window is the
+last 30 days no matter how long the agent has actually been in use.
 
 Note: usage data lives on the machine where the extension server runs. For a
 remote workspace that is the remote host, so the dashboard shows that machine's
