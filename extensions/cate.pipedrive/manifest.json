@@ -1,0 +1,18 @@
+{
+  "id": "cate.pipedrive",
+  "name": "Pipedrive",
+  "version": "1.0.0",
+  "description": "Pipedrive as a canvas panel. Points a panel at the Pipedrive web app in the extension's own persistent session, so you stay signed in across restarts and can keep your deal pipeline next to your code.",
+  "url": "https://app.pipedrive.com/",
+  "panels": [
+    {
+      "id": "app",
+      "label": "Pipedrive",
+      "icon": "<svg viewBox=\"0 0 16 16\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M1.5 3.5h5l2 4.5-2 4.5h-5l2-4.5z\" fill=\"none\" stroke=\"currentColor\" stroke-linejoin=\"round\"/><path d=\"M8.5 3.5h5l2 4.5-2 4.5h-5l2-4.5z\" fill=\"none\" stroke=\"currentColor\" stroke-linejoin=\"round\"/></svg>",
+      "defaultSize": {
+        "width": 1100,
+        "height": 760
+      }
+    }
+  ]
+}

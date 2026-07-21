@@ -1,0 +1,18 @@
+{
+  "id": "cate.dynamics365",
+  "name": "Microsoft Dynamics 365",
+  "version": "1.0.0",
+  "description": "Dynamics 365 as a canvas panel. Points a panel at the Microsoft 365 app launcher in the extension's own persistent session, so you stay signed in across restarts and can keep your CRM next to your code.",
+  "url": "https://www.office.com/apps",
+  "panels": [
+    {
+      "id": "app",
+      "label": "Dynamics 365",
+      "icon": "<svg viewBox=\"0 0 16 16\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"2\" y=\"2\" width=\"5\" height=\"5\" rx=\"1\" fill=\"none\" stroke=\"currentColor\" stroke-linejoin=\"round\"/><rect x=\"9\" y=\"2\" width=\"5\" height=\"5\" rx=\"1\" fill=\"none\" stroke=\"currentColor\" stroke-linejoin=\"round\"/><rect x=\"2\" y=\"9\" width=\"5\" height=\"5\" rx=\"1\" fill=\"none\" stroke=\"currentColor\" stroke-linejoin=\"round\"/><rect x=\"9\" y=\"9\" width=\"5\" height=\"5\" rx=\"1\" fill=\"none\" stroke=\"currentColor\" stroke-linejoin=\"round\"/></svg>",
+      "defaultSize": {
+        "width": 1100,
+        "height": 760
+      }
+    }
+  ]
+}
