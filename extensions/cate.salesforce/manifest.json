@@ -2,6 +2,7 @@
   "id": "cate.salesforce",
   "name": "Salesforce",
   "version": "1.0.0",
+  "category": "sales",
   "description": "Salesforce as a canvas panel. Points a panel at the Salesforce login gateway in the extension's own persistent session, so you stay signed in across restarts and can keep your org next to your code.",
   "url": "https://login.salesforce.com/",
   "panels": [

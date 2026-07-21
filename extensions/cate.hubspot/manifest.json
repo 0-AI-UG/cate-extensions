@@ -2,6 +2,7 @@
   "id": "cate.hubspot",
   "name": "HubSpot",
   "version": "1.0.0",
+  "category": "sales",
   "description": "HubSpot as a canvas panel. Points a panel at the HubSpot web app in the extension's own persistent session, so you stay signed in across restarts and can keep your pipeline next to your code.",
   "url": "https://app.hubspot.com/",
   "panels": [

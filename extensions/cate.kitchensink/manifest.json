@@ -2,6 +2,7 @@
   "id": "cate.kitchensink",
   "name": "Kitchen Sink",
   "version": "1.0.0",
+  "category": "development",
   "dev": true,
   "panels": [{ "id": "main", "label": "Kitchen Sink" }],
   "server": {

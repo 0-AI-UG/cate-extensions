@@ -2,6 +2,7 @@
   "id": "cate.pipedrive",
   "name": "Pipedrive",
   "version": "1.0.0",
+  "category": "sales",
   "description": "Pipedrive as a canvas panel. Points a panel at the Pipedrive web app in the extension's own persistent session, so you stay signed in across restarts and can keep your deal pipeline next to your code.",
   "url": "https://app.pipedrive.com/",
   "panels": [

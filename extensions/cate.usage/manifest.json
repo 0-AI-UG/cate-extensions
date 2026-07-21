@@ -2,6 +2,7 @@
   "id": "cate.usage",
   "name": "Agent Usage",
   "version": "1.1.0",
+  "category": "ai",
   "description": "Agent usage and cost dashboard powered by ccusage. Reads the local Claude Code data (~/.claude) on the machine running the extension server and shows cost and tokens for today, this week, this month, and everything still on disk, a daily cost/token timeline, and a per-model cost split. No data leaves the machine.",
   "panels": [
     {

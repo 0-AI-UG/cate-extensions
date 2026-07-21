@@ -2,6 +2,7 @@
   "id": "cate.jira",
   "name": "Jira",
   "version": "1.0.0",
+  "category": "productivity",
   "description": "Jira as a canvas panel. Points a panel at Atlassian Home in the extension's own persistent session, so you stay signed in across restarts and can keep your board next to your code.",
   "url": "https://home.atlassian.com/",
   "panels": [
