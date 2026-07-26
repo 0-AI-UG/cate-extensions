@@ -9,15 +9,8 @@ under `extensions/`, published to the catalog Cate ships by default.
   manager), `cate.usage` (agent usage and cost)
 - **Data** — `cate.sqlite` (read-only SQLite browser)
 - **Design** — `cate.excalidraw` (whiteboard), `cate.mermaid` (diagram editor)
-- **Productivity** — `cate.confluence`, `cate.jira`
-- **Communication** — `cate.discord`, `cate.slack`
-- **Sales & CRM** — `cate.dynamics365`, `cate.hubspot`, `cate.pipedrive`,
-  `cate.salesforce`, `cate.zohocrm`
 - **Development** — `cate.frontendkit`, `cate.kitchensink` (reference apps,
   `"dev": true`, sideload only)
-
-The CRM, chat and docs ones are url-mode: the manifest is a single `url`, so
-there is no build, no server and no `cate.*` bridge.
 
 ## Layout
 
