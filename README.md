@@ -1,3 +1,7 @@
+# Retired
+
+Extensions were removed from cate. This Repo currently does not serve a purpose within Cate.
+
 # cate-extensions
 
 Extensions for [Cate](https://github.com/0-AI-UG/cate). One folder per extension
